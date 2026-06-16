@@ -568,11 +568,19 @@ export default function InvestmentHoldingDetailScreen() {
             const chartMin = priceChartMin;
             const chartMax = priceChartMax;
             const chartRange = Math.max(chartMax - chartMin, 1);
-            const chartPlotPadding = 10;
-            const chartPlotWidth = Math.max(priceChartWidth - chartPlotPadding * 2, 1);
+            const chartHorizontalPadding = 22;
+            const chartVerticalPadding = 18;
+            const chartPlotWidth = Math.max(
+              priceChartWidth - chartHorizontalPadding * 2,
+              1
+            );
+            const chartPlotHeight = Math.max(
+              priceChartHeight - chartVerticalPadding * 2,
+              1
+            );
             const points = priceChartItems.map((point, index) => {
               const x =
-                chartPlotPadding +
+                chartHorizontalPadding +
                 (priceChartItems.length === 1
                   ? 0
                   : (index / (priceChartItems.length - 1)) * chartPlotWidth);
@@ -580,7 +588,8 @@ export default function InvestmentHoldingDetailScreen() {
                 priceChartItems.length === 1
                   ? 0
                   : Math.min(Math.max((point.price - chartMin) / chartRange, 0), 1);
-              const y = priceChartHeight - normalized * priceChartHeight;
+              const y =
+                chartVerticalPadding + (1 - normalized) * chartPlotHeight;
 
               return {
                 ...point,
@@ -590,6 +599,20 @@ export default function InvestmentHoldingDetailScreen() {
             });
             const selectedPoint =
               points.find((point) => point.id === selectedPriceChartPointId) || null;
+            const handleChartPress = (touchX: number) => {
+              if (points.length === 0) {
+                return;
+              }
+
+              const nearestPoint = points.reduce((closestPoint, currentPoint) => {
+                return Math.abs(currentPoint.x - touchX) <
+                  Math.abs(closestPoint.x - touchX)
+                  ? currentPoint
+                  : closestPoint;
+              }, points[0]);
+
+              setSelectedPriceChartPointId(nearestPoint.id);
+            };
             const tooltipWidth = 144;
             const tooltipLeft = selectedPoint
               ? Math.min(
@@ -598,7 +621,10 @@ export default function InvestmentHoldingDetailScreen() {
                 )
               : 8;
             const tooltipTop = selectedPoint
-              ? Math.min(Math.max(selectedPoint.y > 62 ? selectedPoint.y - 64 : selectedPoint.y + 16, 8), priceChartHeight - 62)
+              ? Math.min(
+                  Math.max(selectedPoint.y > 62 ? selectedPoint.y - 64 : selectedPoint.y + 16, 8),
+                  priceChartHeight - 62
+                )
               : 8;
 
             return (
@@ -607,9 +633,9 @@ export default function InvestmentHoldingDetailScreen() {
                   style={[
                     styles.priceChartGridLine,
                     {
-                      left: chartPlotPadding,
+                      left: chartHorizontalPadding,
                       width: chartPlotWidth,
-                      top: priceChartHeight * 0.25,
+                      top: chartVerticalPadding,
                     },
                   ]}
                 />
@@ -617,9 +643,9 @@ export default function InvestmentHoldingDetailScreen() {
                   style={[
                     styles.priceChartGridLine,
                     {
-                      left: chartPlotPadding,
+                      left: chartHorizontalPadding,
                       width: chartPlotWidth,
-                      top: priceChartHeight * 0.5,
+                      top: chartVerticalPadding + chartPlotHeight / 2,
                     },
                   ]}
                 />
@@ -627,12 +653,14 @@ export default function InvestmentHoldingDetailScreen() {
                   style={[
                     styles.priceChartGridLine,
                     {
-                      left: chartPlotPadding,
+                      left: chartHorizontalPadding,
                       width: chartPlotWidth,
-                      top: priceChartHeight * 0.75,
+                      top: chartVerticalPadding + chartPlotHeight,
                     },
                   ]}
                 />
+
+
 
                 {selectedPoint ? (
                   <View
@@ -668,30 +696,66 @@ export default function InvestmentHoldingDetailScreen() {
                   );
                 })}
 
-                {points.map((point) => (
-                  <View
-                    key={point.id}
+                {points.map((point) => {
+                  const active = point.id === selectedPriceChartPointId;
+
+                  return (
+                    <View
+                      key={point.id}
+                      pointerEvents="none"
+                      style={[
+                        styles.priceLinePointTouch,
+                        {
+                          left: point.x - 17,
+                          top: point.y - 17,
+                        },
+                      ]}
+                    >
+                      <View
+                        style={[
+                          styles.priceLinePointDot,
+                          active && styles.priceLinePointDotActive,
+                        ]}
+                      />
+                    </View>
+                  );
+                })}
+
+                <Pressable
+                  onPressIn={(event) => handleChartPress(event.nativeEvent.locationX)}
+                  onLongPress={(event) => handleChartPress(event.nativeEvent.locationX)}
+                  style={styles.priceChartTouchLayer}
+                />
+
+                {selectedPoint ? (
+                  <Pressable
+                    onPress={() => setSelectedPriceChartPointId(null)}
                     style={[
-                      styles.priceLineDot,
+                      styles.priceChartTooltip,
                       {
-                        left:
-                          point.x <= 0
-                            ? 0
-                            : point.x >= priceChartWidth
-                              ? priceChartWidth - 10
-                              : point.x - 5,
-                        top:
-                          point.y <= 0
-                            ? 0
-                            : point.y >= priceChartHeight
-                              ? priceChartHeight - 10
-                              : point.y - 5,
+                        left: tooltipLeft,
+                        top: tooltipTop,
+                        width: tooltipWidth,
                       },
                     ]}
-                  />
-                ))}
+                  >
+                    <AppText
+                      variant="caption"
+                      style={styles.priceChartTooltipValue}
+                      numberOfLines={1}
+                    >
+                      {formatCompactCurrency(selectedPoint.price, holding.currency)}
+                    </AppText>
 
-
+                    <AppText
+                      variant="caption"
+                      style={styles.priceChartTooltipDate}
+                      numberOfLines={1}
+                    >
+                      {selectedPoint.label || formatDate(selectedPoint.recordedAt)}
+                    </AppText>
+                  </Pressable>
+                ) : null}
               </>
             );
           })()}
@@ -1432,19 +1496,34 @@ function createStyles(colors: ThemeColors) {
       borderRadius: 999,
       backgroundColor: colors.investment,
     },
-    priceLineDot: {
+    priceChartTouchLayer: {
       position: 'absolute',
+      left: 0,
+      right: 0,
+      top: 0,
+      bottom: 0,
+      zIndex: 5,
+    },
+    priceLinePointTouch: {
+      position: 'absolute',
+      width: 34,
+      height: 34,
+      borderRadius: 17,
+      alignItems: 'center',
+      justifyContent: 'center',
+      zIndex: 4,
+    },
+    priceLinePointDot: {
       width: 10,
       height: 10,
       borderRadius: 999,
       backgroundColor: colors.primary,
       borderWidth: 2,
       borderColor: colors.surface,
-      zIndex: 4,
     },
-    priceLineDotActive: {
-      width: 16,
-      height: 16,
+    priceLinePointDotActive: {
+      width: 17,
+      height: 17,
       borderWidth: 4,
       borderColor: colors.surface,
       shadowColor: colors.black,

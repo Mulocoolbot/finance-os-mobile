@@ -252,11 +252,19 @@ export default function NetWorthHistoryScreen() {
               const minValue = Math.min(...chartItems.map((item) => item.netWorth));
               const localMaxValue = Math.max(...chartItems.map((item) => item.netWorth));
               const chartRange = Math.max(localMaxValue - minValue, 1);
-              const chartPlotPadding = 10;
-              const chartPlotWidth = Math.max(lineChartWidth - chartPlotPadding * 2, 1);
+              const chartHorizontalPadding = 22;
+              const chartVerticalPadding = 18;
+              const chartPlotWidth = Math.max(
+                lineChartWidth - chartHorizontalPadding * 2,
+                1
+              );
+              const chartPlotHeight = Math.max(
+                lineChartHeight - chartVerticalPadding * 2,
+                1
+              );
               const points = chartItems.map((snapshot, index) => {
                 const x =
-                  chartPlotPadding +
+                  chartHorizontalPadding +
                   (chartItems.length === 1
                     ? 0
                     : (index / (chartItems.length - 1)) * chartPlotWidth);
@@ -264,7 +272,8 @@ export default function NetWorthHistoryScreen() {
                   chartItems.length === 1
                     ? 0
                     : Math.min(Math.max((snapshot.netWorth - minValue) / chartRange, 0), 1);
-                const y = lineChartHeight - normalized * lineChartHeight;
+                const y =
+                  chartVerticalPadding + (1 - normalized) * chartPlotHeight;
 
                 return {
                   ...snapshot,
@@ -274,6 +283,20 @@ export default function NetWorthHistoryScreen() {
               });
               const selectedPoint =
                 points.find((point) => point.id === selectedNetWorthPointId) || null;
+              const handleChartPress = (touchX: number) => {
+                if (points.length === 0) {
+                  return;
+                }
+
+                const nearestPoint = points.reduce((closestPoint, currentPoint) => {
+                  return Math.abs(currentPoint.x - touchX) <
+                    Math.abs(closestPoint.x - touchX)
+                    ? currentPoint
+                    : closestPoint;
+                }, points[0]);
+
+                setSelectedNetWorthPointId(nearestPoint.id);
+              };
               const tooltipWidth = 146;
               const tooltipLeft = selectedPoint
                 ? Math.min(
@@ -291,9 +314,9 @@ export default function NetWorthHistoryScreen() {
                     style={[
                       styles.lineGuide,
                       {
-                        left: chartPlotPadding,
+                        left: chartHorizontalPadding,
                         width: chartPlotWidth,
-                        top: lineChartHeight * 0.25,
+                        top: chartVerticalPadding,
                       },
                     ]}
                   />
@@ -301,9 +324,9 @@ export default function NetWorthHistoryScreen() {
                     style={[
                       styles.lineGuide,
                       {
-                        left: chartPlotPadding,
+                        left: chartHorizontalPadding,
                         width: chartPlotWidth,
-                        top: lineChartHeight * 0.5,
+                        top: chartVerticalPadding + chartPlotHeight / 2,
                       },
                     ]}
                   />
@@ -311,9 +334,9 @@ export default function NetWorthHistoryScreen() {
                     style={[
                       styles.lineGuide,
                       {
-                        left: chartPlotPadding,
+                        left: chartHorizontalPadding,
                         width: chartPlotWidth,
-                        top: lineChartHeight * 0.75,
+                        top: chartVerticalPadding + chartPlotHeight,
                       },
                     ]}
                   />
@@ -356,37 +379,36 @@ export default function NetWorthHistoryScreen() {
                     const active = point.id === selectedNetWorthPointId;
 
                     return (
-                      <Pressable
+                      <View
                         key={point.id}
-                        onPress={() =>
-                          setSelectedNetWorthPointId((currentPointId) =>
-                            currentPointId === point.id ? null : point.id
-                          )
-                        }
+                        pointerEvents="none"
                         style={[
-                          styles.lineDot,
-                          active && styles.lineDotActive,
+                          styles.linePointTouch,
                           {
-                            left:
-                              point.x <= 0
-                                ? 0
-                                : point.x >= lineChartWidth
-                                  ? lineChartWidth - 10
-                                  : point.x - 5,
-                            top:
-                              point.y <= 0
-                                ? 0
-                                : point.y >= lineChartHeight
-                                  ? lineChartHeight - 10
-                                  : point.y - 5,
+                            left: point.x - 17,
+                            top: point.y - 17,
                           },
                         ]}
-                      />
+                      >
+                        <View
+                          style={[
+                            styles.linePointDot,
+                            active && styles.linePointDotActive,
+                          ]}
+                        />
+                      </View>
                     );
                   })}
 
+                  <Pressable
+                    onPressIn={(event) => handleChartPress(event.nativeEvent.locationX)}
+                    onLongPress={(event) => handleChartPress(event.nativeEvent.locationX)}
+                    style={styles.lineChartTouchLayer}
+                  />
+
                   {selectedPoint ? (
-                    <View
+                    <Pressable
+                      onPress={() => setSelectedNetWorthPointId(null)}
                       style={[
                         styles.lineChartTooltip,
                         {
@@ -414,7 +436,7 @@ export default function NetWorthHistoryScreen() {
                       >
                         {formatSnapshotDate(selectedPoint.date)}
                       </AppText>
-                    </View>
+                    </Pressable>
                   ) : null}
                 </>
               );
@@ -635,7 +657,7 @@ function createStyles(colors: ThemeColors) {
     lineChartBody: {
       alignSelf: 'center',
       position: 'relative',
-      borderRadius: 20,
+      borderRadius: 22,
       backgroundColor: colors.surfaceSoft,
       overflow: 'hidden',
     },
@@ -659,21 +681,36 @@ function createStyles(colors: ThemeColors) {
       position: 'absolute',
       height: 3,
       borderRadius: 999,
-      backgroundColor: colors.saving,
+      backgroundColor: colors.primary,
     },
-    lineDot: {
+    lineChartTouchLayer: {
       position: 'absolute',
+      left: 0,
+      right: 0,
+      top: 0,
+      bottom: 0,
+      zIndex: 5,
+    },
+    linePointTouch: {
+      position: 'absolute',
+      width: 34,
+      height: 34,
+      borderRadius: 17,
+      alignItems: 'center',
+      justifyContent: 'center',
+      zIndex: 4,
+    },
+    linePointDot: {
       width: 10,
       height: 10,
       borderRadius: 999,
-      backgroundColor: colors.saving,
+      backgroundColor: colors.primary,
       borderWidth: 2,
       borderColor: colors.surface,
-      zIndex: 4,
     },
-    lineDotActive: {
-      width: 16,
-      height: 16,
+    linePointDotActive: {
+      width: 17,
+      height: 17,
       borderWidth: 4,
       borderColor: colors.surface,
       shadowColor: colors.black,

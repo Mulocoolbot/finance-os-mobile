@@ -744,11 +744,19 @@ export default function HomeScreen() {
             const chartMin = Math.min(...netWorthChartItems.map((item) => item.netWorth));
             const chartMax = Math.max(...netWorthChartItems.map((item) => item.netWorth));
             const chartRange = Math.max(chartMax - chartMin, 1);
-            const chartPlotPadding = 10;
-            const chartPlotWidth = Math.max(netWorthChartWidth - chartPlotPadding * 2, 1);
+            const chartHorizontalPadding = 22;
+            const chartVerticalPadding = 18;
+            const chartPlotWidth = Math.max(
+              netWorthChartWidth - chartHorizontalPadding * 2,
+              1
+            );
+            const chartPlotHeight = Math.max(
+              netWorthChartHeight - chartVerticalPadding * 2,
+              1
+            );
             const points = netWorthChartItems.map((snapshot, index) => {
               const x =
-                chartPlotPadding +
+                chartHorizontalPadding +
                 (netWorthChartItems.length === 1
                   ? 0
                   : (index / (netWorthChartItems.length - 1)) * chartPlotWidth);
@@ -756,7 +764,8 @@ export default function HomeScreen() {
                 netWorthChartItems.length === 1
                   ? 0
                   : Math.min(Math.max((snapshot.netWorth - chartMin) / chartRange, 0), 1);
-              const y = netWorthChartHeight - normalized * netWorthChartHeight;
+              const y =
+                chartVerticalPadding + (1 - normalized) * chartPlotHeight;
 
               return {
                 ...snapshot,
@@ -766,6 +775,20 @@ export default function HomeScreen() {
             });
             const selectedPoint =
               points.find((point) => point.id === selectedDashboardPointId) || null;
+            const handleChartPress = (touchX: number) => {
+              if (points.length === 0) {
+                return;
+              }
+
+              const nearestPoint = points.reduce((closestPoint, currentPoint) => {
+                return Math.abs(currentPoint.x - touchX) <
+                  Math.abs(closestPoint.x - touchX)
+                  ? currentPoint
+                  : closestPoint;
+              }, points[0]);
+
+              setSelectedDashboardPointId(nearestPoint.id);
+            };
             const tooltipWidth = 138;
             const tooltipLeft = selectedPoint
               ? Math.min(
@@ -783,9 +806,9 @@ export default function HomeScreen() {
                   style={[
                     styles.dashboardLineGuide,
                     {
-                      left: chartPlotPadding,
+                      left: chartHorizontalPadding,
                       width: chartPlotWidth,
-                      top: netWorthChartHeight * 0.25,
+                      top: chartVerticalPadding,
                     },
                   ]}
                 />
@@ -793,9 +816,9 @@ export default function HomeScreen() {
                   style={[
                     styles.dashboardLineGuide,
                     {
-                      left: chartPlotPadding,
+                      left: chartHorizontalPadding,
                       width: chartPlotWidth,
-                      top: netWorthChartHeight * 0.5,
+                      top: chartVerticalPadding + chartPlotHeight / 2,
                     },
                   ]}
                 />
@@ -803,9 +826,9 @@ export default function HomeScreen() {
                   style={[
                     styles.dashboardLineGuide,
                     {
-                      left: chartPlotPadding,
+                      left: chartHorizontalPadding,
                       width: chartPlotWidth,
-                      top: netWorthChartHeight * 0.75,
+                      top: chartVerticalPadding + chartPlotHeight,
                     },
                   ]}
                 />
@@ -848,37 +871,36 @@ export default function HomeScreen() {
                   const active = point.id === selectedDashboardPointId;
 
                   return (
-                    <Pressable
+                    <View
                       key={point.id}
-                      onPress={() =>
-                        setSelectedDashboardPointId((currentPointId) =>
-                          currentPointId === point.id ? null : point.id
-                        )
-                      }
+                      pointerEvents="none"
                       style={[
-                        styles.dashboardLineDot,
-                        active && styles.dashboardLineDotActive,
+                        styles.dashboardLinePointTouch,
                         {
-                          left:
-                            point.x <= 0
-                              ? 0
-                              : point.x >= netWorthChartWidth
-                                ? netWorthChartWidth - 10
-                                : point.x - 5,
-                          top:
-                            point.y <= 0
-                              ? 0
-                              : point.y >= netWorthChartHeight
-                                ? netWorthChartHeight - 10
-                                : point.y - 5,
+                          left: point.x - 17,
+                          top: point.y - 17,
                         },
                       ]}
-                    />
+                    >
+                      <View
+                        style={[
+                          styles.dashboardLinePointDot,
+                          active && styles.dashboardLinePointDotActive,
+                        ]}
+                      />
+                    </View>
                   );
                 })}
 
+                <Pressable
+                  onPressIn={(event) => handleChartPress(event.nativeEvent.locationX)}
+                  onLongPress={(event) => handleChartPress(event.nativeEvent.locationX)}
+                  style={styles.dashboardChartTouchLayer}
+                />
+
                 {selectedPoint ? (
-                  <View
+                  <Pressable
+                    onPress={() => setSelectedDashboardPointId(null)}
                     style={[
                       styles.dashboardChartTooltip,
                       {
@@ -903,7 +925,7 @@ export default function HomeScreen() {
                     >
                       {formatDashboardChartDate(selectedPoint.date)}
                     </AppText>
-                  </View>
+                  </Pressable>
                 ) : null}
               </>
             );
@@ -1474,7 +1496,7 @@ function createStyles(colors: ThemeColors) {
     dashboardLineChartBody: {
       alignSelf: 'center',
       position: 'relative',
-      borderRadius: 20,
+      borderRadius: 22,
       backgroundColor: colors.surfaceSoft,
       overflow: 'hidden',
     },
@@ -1498,21 +1520,36 @@ function createStyles(colors: ThemeColors) {
       position: 'absolute',
       height: 3,
       borderRadius: 999,
-      backgroundColor: colors.saving,
+      backgroundColor: colors.primary,
     },
-    dashboardLineDot: {
+    dashboardChartTouchLayer: {
       position: 'absolute',
+      left: 0,
+      right: 0,
+      top: 0,
+      bottom: 0,
+      zIndex: 5,
+    },
+    dashboardLinePointTouch: {
+      position: 'absolute',
+      width: 34,
+      height: 34,
+      borderRadius: 17,
+      alignItems: 'center',
+      justifyContent: 'center',
+      zIndex: 4,
+    },
+    dashboardLinePointDot: {
       width: 10,
       height: 10,
       borderRadius: 999,
-      backgroundColor: colors.saving,
+      backgroundColor: colors.primary,
       borderWidth: 2,
       borderColor: colors.surface,
-      zIndex: 4,
     },
-    dashboardLineDotActive: {
-      width: 16,
-      height: 16,
+    dashboardLinePointDotActive: {
+      width: 17,
+      height: 17,
       borderWidth: 4,
       borderColor: colors.surface,
       shadowColor: colors.black,
