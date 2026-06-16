@@ -492,6 +492,50 @@ export default function InvestmentHoldingDetailScreen() {
         </Pressable>
       </View>
 
+      {holding.assetType === 'crypto' ? (
+        <View style={styles.cryptoActionCard}>
+          <View style={styles.cryptoActionHeader}>
+            <View style={styles.cryptoActionIcon}>
+              <Ionicons name="logo-bitcoin" size={20} color={colors.black} />
+            </View>
+
+            <View style={styles.cryptoActionTextBox}>
+              <AppText variant="body" style={styles.cryptoActionTitle}>
+                Crypto Transaction
+              </AppText>
+
+              <AppText variant="caption" muted style={styles.cryptoActionDescription}>
+                Receive crypto income or pay directly from this holding.
+              </AppText>
+            </View>
+          </View>
+
+          <View style={styles.cryptoActionRow}>
+            <Pressable
+              onPress={() => router.push(`/add-crypto-income?holdingId=${holding.id}`)}
+              style={styles.cryptoIncomeButton}
+            >
+              <Ionicons name="arrow-down-circle-outline" size={17} color={colors.income} />
+
+              <AppText variant="caption" style={styles.cryptoActionButtonText}>
+                Receive
+              </AppText>
+            </Pressable>
+
+            <Pressable
+              onPress={() => router.push(`/add-crypto-expense?holdingId=${holding.id}`)}
+              style={styles.cryptoExpenseButton}
+            >
+              <Ionicons name="arrow-up-circle-outline" size={17} color={colors.expense} />
+
+              <AppText variant="caption" style={styles.cryptoActionButtonText}>
+                Pay
+              </AppText>
+            </Pressable>
+          </View>
+        </View>
+      ) : null}
+
       <View style={styles.priceHistoryCard}>
         <View style={styles.priceHistoryHeader}>
           <View style={styles.priceHistoryTitleBox}>
@@ -1397,6 +1441,74 @@ function createStyles(colors: ThemeColors) {
     },
     updateButtonText: {
       color: colors.black,
+      fontWeight: '900',
+    },
+    cryptoActionCard: {
+      marginTop: 14,
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 24,
+      padding: 15,
+      gap: 14,
+    },
+    cryptoActionHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+    },
+    cryptoActionIcon: {
+      width: 42,
+      height: 42,
+      borderRadius: 16,
+      backgroundColor: colors.primary,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    cryptoActionTextBox: {
+      flex: 1,
+      minWidth: 0,
+    },
+    cryptoActionTitle: {
+      color: colors.text,
+      fontWeight: '900',
+    },
+    cryptoActionDescription: {
+      marginTop: 4,
+      lineHeight: 18,
+    },
+    cryptoActionRow: {
+      flexDirection: 'row',
+      gap: 10,
+    },
+    cryptoIncomeButton: {
+      flex: 1,
+      minHeight: 46,
+      borderRadius: 16,
+      backgroundColor: colors.surfaceSoft,
+      borderWidth: 1,
+      borderColor: colors.border,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 7,
+      paddingHorizontal: 10,
+    },
+    cryptoExpenseButton: {
+      flex: 1,
+      minHeight: 46,
+      borderRadius: 16,
+      backgroundColor: colors.surfaceSoft,
+      borderWidth: 1,
+      borderColor: colors.border,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 7,
+      paddingHorizontal: 10,
+    },
+    cryptoActionButtonText: {
+      color: colors.text,
       fontWeight: '900',
     },
     priceHistoryCard: {

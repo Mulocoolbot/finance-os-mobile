@@ -145,6 +145,44 @@ type BuyInvestmentAssetPayload = {
   recordedAt?: string;
 };
 
+type AddCryptoIncomePayload = {
+  accountId: string;
+  holdingId?: string;
+  title?: string;
+  categoryId?: string;
+  categoryName?: string;
+  name: string;
+  symbol: string;
+  quantity: number;
+  rate: number;
+  rateCurrency: Currency;
+  date?: string;
+  note?: string;
+  provider?: string;
+};
+
+type AddCryptoExpensePayload = {
+  holdingId: string;
+  title?: string;
+  categoryId?: string;
+  categoryName?: string;
+  quantity: number;
+  rate: number;
+  rateCurrency: Currency;
+  date?: string;
+  note?: string;
+  provider?: string;
+};
+
+type UpdateCryptoTransactionDetailsPayload = {
+  transactionId: string;
+  title: string;
+  categoryId?: string;
+  date: string;
+  note?: string;
+  quantity?: number;
+};
+
 type AddNetWorthSnapshotPayload = {
   date?: string;
   currency: Currency;
@@ -250,6 +288,10 @@ type FinanceStore = {
   addInvestmentHolding: (payload: AddInvestmentHoldingPayload) => ActionResult;
   updateInvestmentHolding: (payload: UpdateInvestmentHoldingPayload) => ActionResult;
   buyInvestmentAsset: (payload: BuyInvestmentAssetPayload) => ActionResult;
+  addCryptoIncome: (payload: AddCryptoIncomePayload) => ActionResult;
+  addCryptoExpense: (payload: AddCryptoExpensePayload) => ActionResult;
+  deleteCryptoTransaction: (transactionId: string) => ActionResult;
+  updateCryptoTransactionDetails: (payload: UpdateCryptoTransactionDetailsPayload) => ActionResult;
   updateInvestmentHoldingPrice: (payload: UpdateInvestmentHoldingPricePayload) => ActionResult;
   upsertInvestmentPriceHistoryPoint: (
     payload: UpsertInvestmentPriceHistoryPointPayload
@@ -262,6 +304,7 @@ type FinanceStore = {
   deleteNetWorthSnapshot: (snapshotId: string) => ActionResult;
   addIncome: (payload: AddIncomePayload) => ActionResult;
   addExpense: (payload: AddExpensePayload) => ActionResult;
+  deleteTransaction: (transactionId: string) => ActionResult;
   updateTransaction: (payload: UpdateTransactionPayload) => ActionResult;
   transfer: (payload: TransferPayload) => ActionResult;
   savingDeposit: (payload: TransferPayload) => ActionResult;
@@ -2793,6 +2836,771 @@ export const useFinanceStore = create<FinanceStore>((set, get) => {
     };
   },
 
+
+  deleteCryptoTransaction: (transactionId) => {
+    const {
+      investmentHoldings,
+      investmentOrders,
+      transactions,
+    } = get();
+
+    const targetTransaction = transactions.find(
+      (transaction) => transaction.id === transactionId
+    );
+
+    if (!targetTransaction) {
+      return {
+        success: false,
+        message: 'Crypto transaction not found.',
+      };
+    }
+
+    const isCryptoTransaction =
+      targetTransaction.categoryName === 'Crypto Income' ||
+      targetTransaction.categoryName === 'Crypto Payment' ||
+      targetTransaction.title.toLowerCase().startsWith('crypto income') ||
+      targetTransaction.title.toLowerCase().startsWith('crypto payment') ||
+      targetTransaction.note?.includes('Crypto qty:') ||
+      /[0-9.]+\s+[A-Z0-9]+\s+@\s+[0-9.]+\s+[A-Z]{3}/i.test(
+        targetTransaction.note || ''
+      );
+
+    if (!isCryptoTransaction) {
+      return {
+        success: false,
+        message: 'Only crypto transactions can be deleted here.',
+      };
+    }
+
+    const structuredMatch = `${targetTransaction.title || ''} ${
+      targetTransaction.note || ''
+    }`.match(
+      /Crypto qty:\s*([0-9.]+)\s+([A-Z0-9]+)\s+•\s+Rate:\s*([0-9.]+)\s+([A-Z]{3})/i
+    );
+    const legacyMatch = `${targetTransaction.title || ''} ${
+      targetTransaction.note || ''
+    }`.match(/([0-9.]+)\s+([A-Z0-9]+)\s+@\s+([0-9.]+)\s+([A-Z]{3})/i);
+    const match = structuredMatch || legacyMatch;
+    const symbolFromTitle = targetTransaction.title.match(
+      /Crypto\s+(?:Income|Payment)\s+([A-Z0-9]+)/i
+    );
+    const quantity = Number(match?.[1] || 0);
+    const symbol = (match?.[2] || symbolFromTitle?.[1] || '')
+      .trim()
+      .toUpperCase();
+    const isPayment =
+      targetTransaction.type === 'expense' ||
+      targetTransaction.categoryName === 'Crypto Payment' ||
+      targetTransaction.title.toLowerCase().startsWith('crypto payment') ||
+      targetTransaction.note?.toLowerCase().includes('crypto payment');
+
+    if (!symbol || !Number.isFinite(quantity) || quantity <= 0) {
+      return {
+        success: false,
+        message:
+          'Crypto metadata is incomplete. This transaction cannot be deleted safely.',
+      };
+    }
+
+    const candidateOrders = investmentOrders.filter((order) => {
+      const sameSymbol = order.symbol.trim().toUpperCase() === symbol;
+      const sameType = isPayment
+        ? order.orderType === 'sell'
+        : order.orderType === 'buy';
+      const sameAsset = order.assetType === 'crypto';
+      const sameQuantity = Math.abs(order.quantity - quantity) < 0.00000001;
+      const sameDate =
+        new Date(order.date).toISOString().slice(0, 10) ===
+        new Date(targetTransaction.date).toISOString().slice(0, 10);
+
+      return sameSymbol && sameType && sameAsset && sameQuantity && sameDate;
+    });
+
+    const targetOrder =
+      candidateOrders.find(
+        (order) =>
+          Math.abs(order.totalAmount - targetTransaction.amount) < 0.00000001 ||
+          order.note?.includes(targetTransaction.note || '__no_note__')
+      ) || candidateOrders[0];
+
+    if (!targetOrder) {
+      return {
+        success: false,
+        message:
+          'Matching crypto order was not found. Delete blocked to protect holding data.',
+      };
+    }
+
+    const holding = investmentHoldings.find(
+      (item) => item.id === targetOrder.holdingId
+    );
+
+    if (!holding) {
+      return {
+        success: false,
+        message:
+          'Matching holding was not found. Delete blocked to protect portfolio data.',
+      };
+    }
+
+    if (!isPayment && holding.quantity < targetOrder.quantity - 0.00000001) {
+      return {
+        success: false,
+        message:
+          'This crypto income cannot be deleted because current holding quantity is lower than the original income quantity.',
+      };
+    }
+
+    const now = new Date().toISOString();
+    const nextHolding: InvestmentHolding = isPayment
+      ? {
+          ...holding,
+          quantity: holding.quantity + targetOrder.quantity,
+          updatedAt: now,
+        }
+      : {
+          ...holding,
+          quantity: Math.max(holding.quantity - targetOrder.quantity, 0),
+          updatedAt: now,
+        };
+
+    setAndPersist({
+      investmentHoldings: investmentHoldings
+        .map((item) => (item.id === holding.id ? nextHolding : item))
+        .filter((item) => item.quantity > 0),
+      investmentOrders: investmentOrders.filter(
+        (order) => order.id !== targetOrder.id
+      ),
+      transactions: transactions.filter(
+        (transaction) => transaction.id !== targetTransaction.id
+      ),
+    });
+
+    return {
+      success: true,
+      message: isPayment
+        ? 'Crypto payment deleted and holding quantity restored.'
+        : 'Crypto income deleted and holding quantity rolled back.',
+    };
+  },
+
+
+  updateCryptoTransactionDetails: (payload) => {
+    const {
+      categories,
+      investmentHoldings,
+      investmentOrders,
+      transactions,
+    } = get();
+
+    const targetTransaction = transactions.find(
+      (transaction) => transaction.id === payload.transactionId
+    );
+
+    if (!targetTransaction) {
+      return {
+        success: false,
+        message: 'Crypto transaction not found.',
+      };
+    }
+
+    const isCryptoTransaction =
+      targetTransaction.categoryName === 'Crypto Income' ||
+      targetTransaction.categoryName === 'Crypto Payment' ||
+      targetTransaction.title.toLowerCase().startsWith('crypto income') ||
+      targetTransaction.title.toLowerCase().startsWith('crypto payment') ||
+      targetTransaction.note?.includes('Crypto qty:') ||
+      /[0-9.]+\s+[A-Z0-9]+\s+@\s+[0-9.]+\s+[A-Z]{3}/i.test(
+        targetTransaction.note || ''
+      );
+
+    if (!isCryptoTransaction) {
+      return {
+        success: false,
+        message: 'Only crypto transactions can be edited here.',
+      };
+    }
+
+    const trimmedTitle = payload.title.trim();
+
+    if (!trimmedTitle) {
+      return {
+        success: false,
+        message: 'Transaction title is required.',
+      };
+    }
+
+    const isPayment =
+      targetTransaction.type === 'expense' ||
+      targetTransaction.categoryName === 'Crypto Payment' ||
+      targetTransaction.title.toLowerCase().startsWith('crypto payment') ||
+      targetTransaction.note?.toLowerCase().includes('crypto payment');
+    const expectedCategoryType = isPayment ? 'expense' : 'income';
+    const category = categories.find(
+      (item) =>
+        item.id === payload.categoryId && item.type === expectedCategoryType
+    );
+
+    const noteText = `${targetTransaction.title || ''} ${
+      targetTransaction.note || ''
+    }`;
+    const structuredMatch = noteText.match(
+      /Crypto qty:\s*([0-9.]+)\s+([A-Z0-9]+)\s+•\s+Rate:\s*([0-9.]+)\s+([A-Z]{3})\s+•\s+Source:\s*([^•]+)/i
+    );
+    const legacyMatch = noteText.match(
+      /([0-9.]+)\s+([A-Z0-9]+)\s+@\s+([0-9.]+)\s+([A-Z]{3})/i
+    );
+    const match = structuredMatch || legacyMatch;
+    const symbolFromTitle = targetTransaction.title.match(
+      /Crypto\s+(?:Income|Payment)\s+([A-Z0-9]+)/i
+    );
+
+    if (!match && !symbolFromTitle?.[1]) {
+      return {
+        success: false,
+        message:
+          'Crypto metadata is incomplete. This transaction cannot be edited safely.',
+      };
+    }
+
+    const oldQuantity = Number(match?.[1] || 0);
+    const symbol = (match?.[2] || symbolFromTitle?.[1] || 'Crypto')
+      .trim()
+      .toUpperCase();
+    const storedRate = Number(match?.[3] || 0);
+    const rateCurrency = (match?.[4] || targetTransaction.currency || 'IDR')
+      .trim()
+      .toUpperCase() as Currency;
+    const source = structuredMatch
+      ? (match?.[5] || 'Manual').trim()
+      : 'Manual / legacy';
+
+    if (!Number.isFinite(oldQuantity) || oldQuantity <= 0) {
+      return {
+        success: false,
+        message: 'Original crypto quantity is invalid.',
+      };
+    }
+
+    const nextQuantity =
+      payload.quantity !== undefined ? payload.quantity : oldQuantity;
+
+    if (!Number.isFinite(nextQuantity) || nextQuantity <= 0) {
+      return {
+        success: false,
+        message: 'Crypto quantity must be greater than 0.',
+      };
+    }
+
+    const safeRate =
+      Number.isFinite(storedRate) && storedRate > 0
+        ? storedRate
+        : targetTransaction.amount / oldQuantity;
+
+    if (!Number.isFinite(safeRate) || safeRate <= 0) {
+      return {
+        success: false,
+        message: 'Stored crypto rate is invalid. Quantity cannot be edited safely.',
+      };
+    }
+
+    const candidateOrders = investmentOrders.filter((order) => {
+      const sameSymbol = order.symbol.trim().toUpperCase() === symbol;
+      const sameType = isPayment
+        ? order.orderType === 'sell'
+        : order.orderType === 'buy';
+      const sameAsset = order.assetType === 'crypto';
+      const sameQuantity = Math.abs(order.quantity - oldQuantity) < 0.00000001;
+      const sameDate =
+        new Date(order.date).toISOString().slice(0, 10) ===
+        new Date(targetTransaction.date).toISOString().slice(0, 10);
+
+      return sameSymbol && sameType && sameAsset && sameQuantity && sameDate;
+    });
+    const matchingOrder =
+      candidateOrders.find(
+        (order) =>
+          Math.abs(order.totalAmount - targetTransaction.amount) < 0.00000001 ||
+          order.note?.includes(targetTransaction.note || '__no_note__')
+      ) || candidateOrders[0];
+
+    if (!matchingOrder) {
+      return {
+        success: false,
+        message:
+          'Matching crypto order was not found. Quantity edit is blocked to protect portfolio data.',
+      };
+    }
+
+    const holding = investmentHoldings.find(
+      (item) => item.id === matchingOrder.holdingId
+    );
+
+    if (!holding) {
+      return {
+        success: false,
+        message:
+          'Matching crypto holding was not found. Quantity edit is blocked.',
+      };
+    }
+
+    const quantityDelta = nextQuantity - oldQuantity;
+    let nextHolding = holding;
+    let nextRealizedPnL = matchingOrder.realizedPnL;
+
+    if (isPayment) {
+      const nextHoldingQuantity = holding.quantity - quantityDelta;
+
+      if (nextHoldingQuantity < -0.00000001) {
+        return {
+          success: false,
+          message:
+            'Crypto payment quantity is greater than available holding quantity.',
+        };
+      }
+
+      const realizedPerUnit =
+        oldQuantity > 0
+          ? matchingOrder.realizedPnL / oldQuantity
+          : matchingOrder.price - holding.averagePrice;
+
+      nextRealizedPnL = realizedPerUnit * nextQuantity;
+      nextHolding = {
+        ...holding,
+        quantity: Math.max(nextHoldingQuantity, 0),
+        currentPrice: matchingOrder.price,
+        updatedAt: new Date().toISOString(),
+      };
+    } else {
+      const nextHoldingQuantity = holding.quantity + quantityDelta;
+
+      if (nextHoldingQuantity < -0.00000001) {
+        return {
+          success: false,
+          message:
+            'Crypto income quantity cannot be reduced because current holding quantity is lower than the reduction amount.',
+        };
+      }
+
+      const currentCost = holding.quantity * holding.averagePrice;
+      const nextCost = currentCost + quantityDelta * matchingOrder.price;
+      const nextAveragePrice =
+        nextHoldingQuantity > 0
+          ? Math.max(nextCost, 0) / nextHoldingQuantity
+          : holding.averagePrice;
+
+      nextHolding = {
+        ...holding,
+        quantity: Math.max(nextHoldingQuantity, 0),
+        averagePrice: nextAveragePrice,
+        currentPrice: matchingOrder.price,
+        updatedAt: new Date().toISOString(),
+      };
+      nextRealizedPnL = 0;
+    }
+
+    const cleanUserNote = payload.note?.trim();
+    const nextNote = `Crypto qty: ${nextQuantity} ${symbol} • Rate: ${safeRate} ${rateCurrency} • Source: ${source}${
+      cleanUserNote ? ` • Note: ${cleanUserNote}` : ''
+    }`;
+    const nextAmount = nextQuantity * safeRate;
+    const amountRatio = nextQuantity / oldQuantity;
+    const nextGrossAmount = matchingOrder.grossAmount * amountRatio;
+    const nextTotalAmount = matchingOrder.totalAmount * amountRatio;
+
+    setAndPersist({
+      investmentHoldings: investmentHoldings
+        .map((item) => (item.id === holding.id ? nextHolding : item))
+        .filter((item) => item.quantity > 0),
+      transactions: transactions.map((transaction) =>
+        transaction.id === targetTransaction.id
+          ? {
+              ...transaction,
+              title: trimmedTitle,
+              amount: nextAmount,
+              currency: rateCurrency,
+              categoryId: category?.id,
+              categoryName:
+                category?.name ||
+                targetTransaction.categoryName ||
+                (isPayment ? 'Crypto Payment' : 'Crypto Income'),
+              date: payload.date || targetTransaction.date,
+              note: nextNote,
+            }
+          : transaction
+      ),
+      investmentOrders: investmentOrders.map((order) =>
+        order.id === matchingOrder.id
+          ? {
+              ...order,
+              quantity: nextQuantity,
+              grossAmount: nextGrossAmount,
+              totalAmount: nextTotalAmount,
+              realizedPnL: nextRealizedPnL,
+              date: payload.date || order.date,
+              note: nextNote,
+            }
+          : order
+      ),
+    });
+
+    return {
+      success: true,
+      message: 'Crypto transaction updated safely.',
+    };
+  },
+
+  addCryptoIncome: (payload) => {
+    const {
+      accounts,
+      categories,
+      investmentHoldings,
+      investmentOrders,
+      investmentPriceHistory,
+      transactions,
+      defaultCurrency,
+      exchangeRates,
+    } = get();
+
+    const account = accounts.find((item) => item.id === payload.accountId);
+    const trimmedSymbol = payload.symbol.trim().toUpperCase();
+    const trimmedName = payload.name.trim() || trimmedSymbol;
+
+    if (!account) {
+      return {
+        success: false,
+        message: 'Crypto wallet or investment account not found.',
+      };
+    }
+
+    if (account.type !== 'broker' && account.type !== 'crypto_wallet') {
+      return {
+        success: false,
+        message: 'Crypto income must go to a broker or crypto wallet account.',
+      };
+    }
+
+    if (!trimmedSymbol || !trimmedName) {
+      return {
+        success: false,
+        message: 'Crypto asset name and symbol are required.',
+      };
+    }
+
+    if (!Number.isFinite(payload.quantity) || payload.quantity <= 0) {
+      return {
+        success: false,
+        message: 'Crypto quantity must be greater than 0.',
+      };
+    }
+
+    if (!Number.isFinite(payload.rate) || payload.rate <= 0) {
+      return {
+        success: false,
+        message: 'Crypto rate must be greater than 0.',
+      };
+    }
+
+    const now = new Date().toISOString();
+    const transactionDate = payload.date || now;
+    const existingHolding =
+      investmentHoldings.find((holding) => holding.id === payload.holdingId) ||
+      investmentHoldings.find(
+        (holding) =>
+          holding.accountId === account.id &&
+          holding.assetType === 'crypto' &&
+          holding.symbol.trim().toUpperCase() === trimmedSymbol &&
+          holding.currency === payload.rateCurrency
+      );
+
+    const holdingCurrency = existingHolding?.currency || payload.rateCurrency;
+    const rateInHoldingCurrency = convertAmountBetweenCurrencies(
+      payload.rate,
+      payload.rateCurrency,
+      holdingCurrency,
+      exchangeRates
+    );
+    const oldQuantity = existingHolding?.quantity || 0;
+    const oldAveragePrice = existingHolding?.averagePrice || 0;
+    const nextQuantity = oldQuantity + payload.quantity;
+    const nextAveragePrice =
+      nextQuantity > 0
+        ? (oldQuantity * oldAveragePrice + payload.quantity * rateInHoldingCurrency) /
+          nextQuantity
+        : rateInHoldingCurrency;
+    const holdingId = existingHolding?.id || createId('holding');
+
+    const nextHolding: InvestmentHolding = existingHolding
+      ? {
+          ...existingHolding,
+          name: trimmedName,
+          symbol: trimmedSymbol,
+          quantity: nextQuantity,
+          averagePrice: nextAveragePrice,
+          currentPrice: rateInHoldingCurrency,
+          updatedAt: now,
+        }
+      : {
+          id: holdingId,
+          accountId: account.id,
+          name: trimmedName,
+          symbol: trimmedSymbol,
+          assetType: 'crypto',
+          quantity: payload.quantity,
+          averagePrice: rateInHoldingCurrency,
+          currentPrice: rateInHoldingCurrency,
+          currency: holdingCurrency,
+          note: payload.note?.trim() || undefined,
+          createdAt: now,
+          updatedAt: now,
+        };
+
+    const category = categories.find(
+      (item) => item.id === payload.categoryId && item.type === 'income'
+    );
+    const transactionTitle =
+      payload.title?.trim() || `Crypto Income ${trimmedSymbol}`;
+    const transactionAmount = payload.quantity * payload.rate;
+    const historicalSnapshot = buildHistoricalTransactionSnapshot(
+      transactionAmount,
+      payload.rateCurrency,
+      defaultCurrency,
+      account.currency || defaultCurrency,
+      exchangeRates
+    );
+    const newTransaction: Transaction = {
+      id: createId('trx'),
+      type: 'income',
+      title: transactionTitle,
+      amount: transactionAmount,
+      currency: payload.rateCurrency,
+      ...historicalSnapshot,
+      accountId: account.id,
+      accountName: account.name,
+      categoryId: category?.id,
+      categoryName:
+        category?.name || payload.categoryName || 'Crypto Income',
+      date: transactionDate,
+      note:
+        `Crypto qty: ${payload.quantity} ${trimmedSymbol} • Rate: ${payload.rate} ${
+          payload.rateCurrency
+        } • Source: ${payload.provider || 'Manual'}${
+          payload.note?.trim() ? ` • Note: ${payload.note.trim()}` : ''
+        }`,
+    };
+    const newInvestmentOrder: InvestmentOrder = {
+      id: createId('inv-order'),
+      holdingId,
+      accountId: account.id,
+      orderType: 'buy',
+      symbol: trimmedSymbol,
+      name: trimmedName,
+      assetType: 'crypto',
+      quantity: payload.quantity,
+      price: rateInHoldingCurrency,
+      fee: 0,
+      grossAmount: payload.quantity * rateInHoldingCurrency,
+      totalAmount: payload.quantity * rateInHoldingCurrency,
+      realizedPnL: 0,
+      currency: holdingCurrency,
+      date: transactionDate,
+      note:
+        `Crypto income • ${payload.quantity} ${trimmedSymbol} @ ${payload.rate} ${
+          payload.rateCurrency
+        } • Source: ${payload.provider || 'Manual'}${
+          payload.note?.trim() ? ` • Note: ${payload.note.trim()}` : ''
+        }`,
+      createdAt: now,
+    };
+    const priceHistoryPoint = createInvestmentPriceHistoryPoint({
+      holdingId,
+      symbol: trimmedSymbol,
+      name: trimmedName,
+      assetType: 'crypto',
+      price: rateInHoldingCurrency,
+      currency: holdingCurrency,
+      source: payload.provider ? 'order' : 'manual',
+      provider: payload.provider,
+      recordedAt: transactionDate,
+    });
+
+    setAndPersist({
+      investmentHoldings: existingHolding
+        ? investmentHoldings.map((holding) =>
+            holding.id === existingHolding.id ? nextHolding : holding
+          )
+        : [nextHolding, ...investmentHoldings],
+      investmentOrders: [newInvestmentOrder, ...investmentOrders],
+      investmentPriceHistory: upsertDailyInvestmentPriceHistoryPoint(
+        investmentPriceHistory,
+        priceHistoryPoint
+      ),
+      transactions: [newTransaction, ...transactions],
+    });
+
+    return {
+      success: true,
+      message: existingHolding
+        ? 'Crypto income added to existing holding.'
+        : 'Crypto income added as a new holding.',
+    };
+  },
+
+  addCryptoExpense: (payload) => {
+    const {
+      accounts,
+      categories,
+      investmentHoldings,
+      investmentOrders,
+      investmentPriceHistory,
+      transactions,
+      defaultCurrency,
+      exchangeRates,
+    } = get();
+
+    const holding = investmentHoldings.find((item) => item.id === payload.holdingId);
+
+    if (!holding || holding.assetType !== 'crypto') {
+      return {
+        success: false,
+        message: 'Crypto holding not found.',
+      };
+    }
+
+    const account = accounts.find((item) => item.id === holding.accountId);
+
+    if (!account) {
+      return {
+        success: false,
+        message: 'Crypto wallet account not found.',
+      };
+    }
+
+    if (!Number.isFinite(payload.quantity) || payload.quantity <= 0) {
+      return {
+        success: false,
+        message: 'Crypto quantity must be greater than 0.',
+      };
+    }
+
+    if (payload.quantity > holding.quantity) {
+      return {
+        success: false,
+        message: 'Crypto quantity cannot be greater than current holding quantity.',
+      };
+    }
+
+    if (!Number.isFinite(payload.rate) || payload.rate <= 0) {
+      return {
+        success: false,
+        message: 'Crypto rate must be greater than 0.',
+      };
+    }
+
+    const category = categories.find(
+      (item) => item.id === payload.categoryId && item.type === 'expense'
+    );
+    const transactionTitle =
+      payload.title?.trim() || `Crypto Payment ${holding.symbol}`;
+    const now = new Date().toISOString();
+    const transactionDate = payload.date || now;
+    const rateInHoldingCurrency = convertAmountBetweenCurrencies(
+      payload.rate,
+      payload.rateCurrency,
+      holding.currency,
+      exchangeRates
+    );
+    const nextQuantity = Math.max(holding.quantity - payload.quantity, 0);
+    const transactionAmount = payload.quantity * payload.rate;
+    const realizedPnL =
+      (rateInHoldingCurrency - holding.averagePrice) * payload.quantity;
+    const historicalSnapshot = buildHistoricalTransactionSnapshot(
+      transactionAmount,
+      payload.rateCurrency,
+      defaultCurrency,
+      account.currency || defaultCurrency,
+      exchangeRates
+    );
+    const nextHolding: InvestmentHolding = {
+      ...holding,
+      quantity: nextQuantity,
+      currentPrice: rateInHoldingCurrency,
+      updatedAt: now,
+    };
+    const newTransaction: Transaction = {
+      id: createId('trx'),
+      type: 'expense',
+      title: transactionTitle,
+      amount: transactionAmount,
+      currency: payload.rateCurrency,
+      ...historicalSnapshot,
+      accountId: account.id,
+      accountName: account.name,
+      categoryId: category?.id,
+      categoryName:
+        category?.name || payload.categoryName || 'Crypto Payment',
+      date: transactionDate,
+      note:
+        `Crypto qty: ${payload.quantity} ${holding.symbol} • Rate: ${payload.rate} ${
+          payload.rateCurrency
+        } • Source: ${payload.provider || 'Manual'}${
+          payload.note?.trim() ? ` • Note: ${payload.note.trim()}` : ''
+        }`,
+    };
+    const newInvestmentOrder: InvestmentOrder = {
+      id: createId('inv-order'),
+      holdingId: holding.id,
+      accountId: account.id,
+      orderType: 'sell',
+      symbol: holding.symbol,
+      name: holding.name,
+      assetType: 'crypto',
+      quantity: payload.quantity,
+      price: rateInHoldingCurrency,
+      fee: 0,
+      grossAmount: payload.quantity * rateInHoldingCurrency,
+      totalAmount: payload.quantity * rateInHoldingCurrency,
+      realizedPnL,
+      currency: holding.currency,
+      date: transactionDate,
+      note:
+        `Crypto payment • ${payload.quantity} ${holding.symbol} @ ${payload.rate} ${
+          payload.rateCurrency
+        } • Source: ${payload.provider || 'Manual'}${
+          payload.note?.trim() ? ` • Note: ${payload.note.trim()}` : ''
+        }`,
+      createdAt: now,
+    };
+    const priceHistoryPoint = createInvestmentPriceHistoryPoint({
+      holdingId: holding.id,
+      symbol: holding.symbol,
+      name: holding.name,
+      assetType: holding.assetType,
+      price: rateInHoldingCurrency,
+      currency: holding.currency,
+      source: payload.provider ? 'order' : 'manual',
+      provider: payload.provider,
+      recordedAt: transactionDate,
+    });
+
+    setAndPersist({
+      investmentHoldings: investmentHoldings.map((item) =>
+        item.id === holding.id ? nextHolding : item
+      ),
+      investmentOrders: [newInvestmentOrder, ...investmentOrders],
+      investmentPriceHistory: upsertDailyInvestmentPriceHistoryPoint(
+        investmentPriceHistory,
+        priceHistoryPoint
+      ),
+      transactions: [newTransaction, ...transactions],
+    });
+
+    return {
+      success: true,
+      message: 'Crypto payment recorded successfully.',
+    };
+  },
+
   updateInvestmentHoldingPrice: (payload) => {
     const { investmentHoldings, investmentPriceHistory } = get();
 
@@ -3413,6 +4221,96 @@ export const useFinanceStore = create<FinanceStore>((set, get) => {
     };
   },
 
+
+
+  deleteTransaction: (transactionId) => {
+    const { accounts, transactions, exchangeRates } = get();
+    const targetTransaction = transactions.find(
+      (transaction) => transaction.id === transactionId
+    );
+
+    if (!targetTransaction) {
+      return {
+        success: false,
+        message: 'Transaction not found.',
+      };
+    }
+
+    const isCryptoTransaction =
+      targetTransaction.categoryName === 'Crypto Income' ||
+      targetTransaction.categoryName === 'Crypto Payment' ||
+      targetTransaction.title.toLowerCase().startsWith('crypto income') ||
+      targetTransaction.title.toLowerCase().startsWith('crypto payment') ||
+      targetTransaction.note?.includes('Crypto qty:') ||
+      /[0-9.]+\s+[A-Z0-9]+\s+@\s+[0-9.]+\s+[A-Z]{3}/i.test(
+        targetTransaction.note || ''
+      );
+
+    if (isCryptoTransaction) {
+      return {
+        success: false,
+        message:
+          'Crypto transactions must be deleted from Crypto Transaction Detail so holding quantity can be rolled back safely.',
+      };
+    }
+
+    if (!canEditTransactionDirectly(targetTransaction)) {
+      return {
+        success: false,
+        message:
+          'Only normal income and expense transactions can be deleted directly.',
+      };
+    }
+
+    const account = accounts.find(
+      (item) => item.id === targetTransaction.accountId
+    );
+
+    if (!account) {
+      return {
+        success: false,
+        message: 'Account not found.',
+      };
+    }
+
+    const accountAmount = getEditableTransactionAccountAmount(
+      targetTransaction,
+      account,
+      exchangeRates
+    );
+    const oldDelta = getEditableTransactionDelta(
+      targetTransaction.type,
+      accountAmount
+    );
+    const nextBalance = account.balance - oldDelta;
+
+    if (nextBalance < -0.00000001) {
+      return {
+        success: false,
+        message: `${account.name} balance would become negative after deleting this transaction.`,
+      };
+    }
+
+    setAndPersist({
+      accounts: accounts.map((item) =>
+        item.id === account.id
+          ? {
+              ...item,
+              balance: nextBalance,
+              updatedAt: new Date().toISOString(),
+            }
+          : item
+      ),
+      transactions: transactions.filter(
+        (transaction) => transaction.id !== targetTransaction.id
+      ),
+    });
+
+    return {
+      success: true,
+      message: 'Transaction deleted successfully.',
+    };
+  },
 
   updateTransaction: (payload) => {
     const { accounts, transactions, categories, defaultCurrency, exchangeRates } = get();

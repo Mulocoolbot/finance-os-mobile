@@ -339,6 +339,46 @@ export default function AddTransactionScreen() {
           })}
         </View>
 
+        <View style={styles.cryptoShortcutCard}>
+          <View style={styles.cryptoShortcutHeader}>
+            <View>
+              <AppText variant="caption" muted>
+                Crypto transaction
+              </AppText>
+
+              <AppText variant="body" style={styles.cryptoShortcutTitle}>
+                Use crypto as income or payment
+              </AppText>
+            </View>
+
+            <Ionicons name="logo-bitcoin" size={22} color={colors.text} />
+          </View>
+
+          <View style={styles.cryptoShortcutRow}>
+            <Pressable
+              onPress={() => router.push('/add-crypto-income')}
+              style={styles.cryptoShortcutButton}
+            >
+              <Ionicons name="arrow-down-circle-outline" size={17} color={colors.income} />
+
+              <AppText variant="caption" style={styles.cryptoShortcutButtonText}>
+                Crypto Income
+              </AppText>
+            </Pressable>
+
+            <Pressable
+              onPress={() => router.push('/add-crypto-expense')}
+              style={styles.cryptoShortcutButton}
+            >
+              <Ionicons name="arrow-up-circle-outline" size={17} color={colors.expense} />
+
+              <AppText variant="caption" style={styles.cryptoShortcutButtonText}>
+                Crypto Payment
+              </AppText>
+            </Pressable>
+          </View>
+        </View>
+
         <View style={styles.field}>
           <AppText variant="caption" muted style={styles.label}>
             Title
@@ -673,6 +713,47 @@ function Radio({ selected, colors }: { selected: boolean; colors: ThemeColors })
 
 function createStyles(colors: ThemeColors) {
   return StyleSheet.create({
+    cryptoShortcutCard: {
+      marginBottom: 18,
+      borderRadius: 24,
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+      padding: 14,
+      gap: 12,
+    },
+    cryptoShortcutHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: 12,
+    },
+    cryptoShortcutTitle: {
+      marginTop: 3,
+      color: colors.text,
+      fontWeight: '900',
+    },
+    cryptoShortcutRow: {
+      flexDirection: 'row',
+      gap: 10,
+    },
+    cryptoShortcutButton: {
+      flex: 1,
+      minHeight: 44,
+      borderRadius: 16,
+      backgroundColor: colors.surfaceSoft,
+      borderWidth: 1,
+      borderColor: colors.border,
+      paddingHorizontal: 10,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 7,
+    },
+    cryptoShortcutButtonText: {
+      color: colors.text,
+      fontWeight: '900',
+    },
     header: {
       marginBottom: 22,
       flexDirection: 'row',

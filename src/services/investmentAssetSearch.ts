@@ -1,315 +1,215 @@
-import { Currency, InvestmentAssetType } from '../types/finance';
-
-export type InvestmentAssetSearchProvider = 'binance' | 'yahoo' | 'manual';
+export type InvestmentAssetSearchProvider = 'binance' | 'coingecko';
 
 export type InvestmentAssetSearchResult = {
   id: string;
-  name: string;
   symbol: string;
-  assetType: InvestmentAssetType;
-  currency: Currency;
+  name: string;
+  assetType: 'crypto' | 'stock' | 'fund' | 'etf' | 'bond' | 'other';
+  currency: 'IDR' | 'USD' | 'EUR';
   provider: InvestmentAssetSearchProvider;
   market?: string;
-  exchange?: string;
-  description?: string;
 };
 
-type BinanceExchangeSymbol = {
-  symbol?: string;
-  status?: string;
-  baseAsset?: string;
-  quoteAsset?: string;
-};
+const BINANCE_SPOT_INFO_URL = 'https://api.binance.com/api/v3/exchangeInfo';
+const COINGECKO_SEARCH_URL = 'https://api.coingecko.com/api/v3/search';
 
-type YahooQuoteResult = {
-  symbol?: string;
-  shortname?: string;
-  longname?: string;
-  quoteType?: string;
-  exchDisp?: string;
-  exchange?: string;
-  currency?: string;
-};
-
-let binanceCatalogCache: InvestmentAssetSearchResult[] | null = null;
-let binanceCatalogPromise: Promise<InvestmentAssetSearchResult[]> | null = null;
-
-function normalizeCurrency(value?: string): Currency {
-  const normalizedValue = value?.toUpperCase();
-
-  if (normalizedValue === 'IDR') return 'IDR';
-  if (normalizedValue === 'EUR') return 'EUR';
-
-  return 'USD';
-}
-
-function normalizeQuery(value: string) {
-  return value.trim().toLowerCase();
-}
-
-function getAssetTypeFromYahooQuote(
-  quoteType?: string,
-  fallback: InvestmentAssetType = 'stock'
-): InvestmentAssetType {
-  const normalizedType = quoteType?.toUpperCase();
-
-  if (normalizedType === 'ETF') return 'etf';
-  if (normalizedType === 'MUTUALFUND') return 'fund';
-  if (normalizedType === 'EQUITY') return 'stock';
-
-  return fallback;
-}
-
-function assetMatchesQuery(item: InvestmentAssetSearchResult, query: string) {
-  const normalizedQuery = normalizeQuery(query);
-
-  if (!normalizedQuery) {
-    return true;
-  }
-
-  return (
-    item.name.toLowerCase().includes(normalizedQuery) ||
-    item.symbol.toLowerCase().includes(normalizedQuery) ||
-    item.market?.toLowerCase().includes(normalizedQuery) ||
-    item.exchange?.toLowerCase().includes(normalizedQuery)
-  );
-}
-
-function sortResults(items: InvestmentAssetSearchResult[], query: string) {
-  const normalizedQuery = normalizeQuery(query);
-
-  return [...items].sort((firstItem, secondItem) => {
-    const firstExact = firstItem.symbol.toLowerCase() === normalizedQuery ? 0 : 1;
-    const secondExact = secondItem.symbol.toLowerCase() === normalizedQuery ? 0 : 1;
-
-    if (firstExact !== secondExact) {
-      return firstExact - secondExact;
+let binanceSymbolCache:
+  | {
+      fetchedAt: number;
+      results: InvestmentAssetSearchResult[];
     }
+  | null = null;
 
-    return firstItem.symbol.localeCompare(secondItem.symbol);
-  });
+const CACHE_TTL_MS = 12 * 60 * 60 * 1000;
+
+function normalizeQuery(query: string) {
+  return query.trim().toUpperCase();
 }
 
-function uniqueResults(items: InvestmentAssetSearchResult[]) {
+function uniqueBySymbol(results: InvestmentAssetSearchResult[]) {
   const seen = new Set<string>();
-  const results: InvestmentAssetSearchResult[] = [];
+  const uniqueResults: InvestmentAssetSearchResult[] = [];
 
-  items.forEach((item) => {
-    const key = `${item.provider}-${item.assetType}-${item.symbol.toLowerCase()}`;
+  results.forEach((result) => {
+    const key = `${result.symbol}-${result.provider}`;
 
     if (seen.has(key)) {
       return;
     }
 
     seen.add(key);
-    results.push(item);
+    uniqueResults.push(result);
   });
 
-  return results;
+  return uniqueResults;
 }
 
-async function fetchWithTimeout(url: string, timeoutMs = 9000) {
-  const controller =
-    typeof AbortController !== 'undefined' ? new AbortController() : null;
-  const timeout = setTimeout(() => {
-    controller?.abort();
-  }, timeoutMs);
+function rankResults(query: string, results: InvestmentAssetSearchResult[]) {
+  const normalizedQuery = normalizeQuery(query);
 
-  try {
-    return await fetch(
-      url,
-      controller
-        ? {
-            signal: controller.signal,
-          }
-        : undefined
-    );
-  } finally {
-    clearTimeout(timeout);
-  }
-}
+  return [...results].sort((a, b) => {
+    const aSymbol = a.symbol.toUpperCase();
+    const bSymbol = b.symbol.toUpperCase();
+    const aName = a.name.toUpperCase();
+    const bName = b.name.toUpperCase();
 
-function normalizeBinanceCatalog(
-  symbols: BinanceExchangeSymbol[]
-): InvestmentAssetSearchResult[] {
-  const byBaseAsset = new Map<string, InvestmentAssetSearchResult>();
+    const aExact = aSymbol === normalizedQuery ? 0 : 1;
+    const bExact = bSymbol === normalizedQuery ? 0 : 1;
 
-  symbols.forEach((symbolItem) => {
-    const baseAsset = symbolItem.baseAsset?.trim().toUpperCase();
-    const quoteAsset = symbolItem.quoteAsset?.trim().toUpperCase();
-    const marketSymbol = symbolItem.symbol?.trim().toUpperCase();
+    if (aExact !== bExact) return aExact - bExact;
 
-    if (
-      symbolItem.status !== 'TRADING' ||
-      !baseAsset ||
-      !quoteAsset ||
-      !marketSymbol ||
-      !['USDT', 'USDC', 'BUSD', 'EUR'].includes(quoteAsset)
-    ) {
-      return;
-    }
+    const aStarts = aSymbol.startsWith(normalizedQuery) || aName.startsWith(normalizedQuery) ? 0 : 1;
+    const bStarts = bSymbol.startsWith(normalizedQuery) || bName.startsWith(normalizedQuery) ? 0 : 1;
 
-    if (byBaseAsset.has(baseAsset) && quoteAsset !== 'USDT') {
-      return;
-    }
+    if (aStarts !== bStarts) return aStarts - bStarts;
 
-    byBaseAsset.set(baseAsset, {
-      id: `binance-crypto-${baseAsset.toLowerCase()}`,
-      name: baseAsset,
-      symbol: baseAsset,
-      assetType: 'crypto',
-      currency: quoteAsset === 'EUR' ? 'EUR' : 'USD',
-      provider: 'binance',
-      market: marketSymbol,
-      exchange: 'Binance',
-      description: `${baseAsset}/${quoteAsset}`,
-    });
+    return aSymbol.localeCompare(bSymbol);
   });
-
-  return Array.from(byBaseAsset.values());
 }
 
-async function getBinanceCatalog() {
-  if (binanceCatalogCache) {
-    return binanceCatalogCache;
+async function fetchBinanceAssets() {
+  const now = Date.now();
+
+  if (binanceSymbolCache && now - binanceSymbolCache.fetchedAt < CACHE_TTL_MS) {
+    return binanceSymbolCache.results;
   }
 
-  if (binanceCatalogPromise) {
-    return binanceCatalogPromise;
+  const response = await fetch(BINANCE_SPOT_INFO_URL);
+
+  if (!response.ok) {
+    throw new Error('Unable to fetch Binance symbols.');
   }
 
-  binanceCatalogPromise = fetchWithTimeout(
-    'https://api.binance.com/api/v3/exchangeInfo'
-  )
-    .then(async (response) => {
-      if (!response.ok) {
-        throw new Error('Unable to load Binance asset catalog.');
-      }
+  const payload = await response.json();
+  const symbols = Array.isArray(payload?.symbols) ? payload.symbols : [];
 
-      const data = await response.json();
-      const symbols = Array.isArray(data?.symbols)
-        ? (data.symbols as BinanceExchangeSymbol[])
-        : [];
-
-      binanceCatalogCache = normalizeBinanceCatalog(symbols);
-      return binanceCatalogCache;
+  const results = symbols
+    .filter((item: any) => {
+      return (
+        item?.status === 'TRADING' &&
+        typeof item?.baseAsset === 'string' &&
+        typeof item?.quoteAsset === 'string' &&
+        ['USDT', 'USD', 'BUSD', 'FDUSD', 'USDC'].includes(item.quoteAsset)
+      );
     })
-    .finally(() => {
-      binanceCatalogPromise = null;
+    .map((item: any) => {
+      const baseAsset = String(item.baseAsset).toUpperCase();
+      const quoteAsset = String(item.quoteAsset).toUpperCase();
+
+      return {
+        id: `binance-${baseAsset}-${quoteAsset}`,
+        symbol: baseAsset,
+        name: baseAsset,
+        assetType: 'crypto' as const,
+        currency: 'USD' as const,
+        provider: 'binance' as const,
+        market: `${baseAsset}${quoteAsset}`,
+      };
     });
 
-  return binanceCatalogPromise;
+  const uniqueResults = uniqueBySymbol(results);
+  binanceSymbolCache = {
+    fetchedAt: now,
+    results: uniqueResults,
+  };
+
+  return uniqueResults;
 }
 
-async function searchCryptoFromBinance(query: string, limit: number) {
-  const catalog = await getBinanceCatalog();
-
-  return sortResults(
-    catalog.filter((item) => assetMatchesQuery(item, query)),
-    query
-  ).slice(0, limit);
-}
-
-async function searchYahooAssets(
-  query: string,
-  assetType: InvestmentAssetType,
-  limit: number
-): Promise<InvestmentAssetSearchResult[]> {
-  const normalizedQuery = query.trim();
+async function searchBinanceCryptoAssets(query: string, limit: number) {
+  const normalizedQuery = normalizeQuery(query);
 
   if (!normalizedQuery) {
     return [];
   }
 
-  const url = `https://query2.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(
-    normalizedQuery
-  )}&quotesCount=${limit}&newsCount=0`;
-  const response = await fetchWithTimeout(url);
+  const assets = await fetchBinanceAssets();
 
-  if (!response.ok) {
-    throw new Error('Unable to search Yahoo Finance assets.');
+  return rankResults(
+    normalizedQuery,
+    assets.filter((asset) => {
+      const symbol = asset.symbol.toUpperCase();
+      const name = asset.name.toUpperCase();
+      const market = asset.market?.toUpperCase() || '';
+
+      return (
+        symbol.includes(normalizedQuery) ||
+        name.includes(normalizedQuery) ||
+        market.includes(normalizedQuery)
+      );
+    })
+  ).slice(0, limit);
+}
+
+async function searchCoinGeckoCryptoAssets(query: string, limit: number) {
+  const rawQuery = query.trim();
+
+  if (rawQuery.length < 2) {
+    return [];
   }
 
-  const data = await response.json();
-  const quotes = Array.isArray(data?.quotes)
-    ? (data.quotes as YahooQuoteResult[])
-    : [];
-  const results: InvestmentAssetSearchResult[] = [];
+  const response = await fetch(`${COINGECKO_SEARCH_URL}?query=${encodeURIComponent(rawQuery)}`);
 
-  quotes.forEach((quote) => {
-    const symbol = quote.symbol?.trim();
+  if (!response.ok) {
+    throw new Error('Unable to fetch CoinGecko search.');
+  }
 
-    if (!symbol) {
-      return;
-    }
+  const payload = await response.json();
+  const coins = Array.isArray(payload?.coins) ? payload.coins : [];
 
-    const detectedType = getAssetTypeFromYahooQuote(quote.quoteType, assetType);
+  return coins.slice(0, limit).map((coin: any) => {
+    const symbol = String(coin?.symbol || '').toUpperCase();
+    const name = String(coin?.name || symbol);
 
-    if (
-      (assetType === 'stock' || assetType === 'etf' || assetType === 'fund') &&
-      detectedType !== assetType &&
-      quote.quoteType
-    ) {
-      return;
-    }
-
-    results.push({
-      id: `yahoo-${detectedType}-${symbol.toLowerCase()}`,
-      name: quote.longname || quote.shortname || symbol,
+    return {
+      id: `coingecko-${String(coin?.id || symbol).toLowerCase()}`,
       symbol,
-      assetType: detectedType,
-      currency: normalizeCurrency(quote.currency),
-      provider: 'yahoo',
-      market: symbol,
-      exchange: quote.exchDisp || quote.exchange || 'Yahoo Finance',
-      description: quote.quoteType,
-    });
-  });
-
-  return uniqueResults(results).slice(0, limit);
+      name,
+      assetType: 'crypto' as const,
+      currency: 'USD' as const,
+      provider: 'coingecko' as const,
+      market: 'CoinGecko',
+    };
+  }).filter((asset: InvestmentAssetSearchResult) => Boolean(asset.symbol));
 }
 
 export async function searchInvestmentAssets(
   query: string,
-  assetType: InvestmentAssetType,
+  assetType: 'crypto' | 'stock' | 'fund' | 'etf' | 'bond' | 'other' = 'crypto',
   limit = 12
 ): Promise<InvestmentAssetSearchResult[]> {
-  const trimmedQuery = query.trim();
-
-  if (!trimmedQuery) {
+  if (assetType !== 'crypto') {
     return [];
   }
+
+  const normalizedQuery = query.trim();
+
+  if (normalizedQuery.length < 2) {
+    return [];
+  }
+
+  const results: InvestmentAssetSearchResult[] = [];
 
   try {
-    if (assetType === 'crypto') {
-      return await searchCryptoFromBinance(trimmedQuery, limit);
-    }
-
-    if (assetType === 'stock' || assetType === 'etf' || assetType === 'fund') {
-      return await searchYahooAssets(trimmedQuery, assetType, limit);
-    }
-
-    return [];
+    results.push(...(await searchBinanceCryptoAssets(normalizedQuery, limit)));
   } catch {
-    return [];
+    // Binance may be blocked or temporarily unavailable. Fall back to CoinGecko.
   }
+
+  if (results.length < limit) {
+    try {
+      results.push(...(await searchCoinGeckoCryptoAssets(normalizedQuery, limit - results.length)));
+    } catch {
+      // Manual input remains available in the UI.
+    }
+  }
+
+  return uniqueBySymbol(rankResults(normalizedQuery, results)).slice(0, limit);
 }
 
-export function getProviderLabel(provider: InvestmentAssetSearchResult['provider']) {
-  if (provider === 'binance') return 'Binance';
-  if (provider === 'yahoo') return 'Yahoo Finance';
+export function getProviderLabel(provider: InvestmentAssetSearchProvider) {
+  if (provider === 'binance') return 'Binance Provider';
+  if (provider === 'coingecko') return 'CoinGecko Provider';
 
-  return 'Manual';
-}
-
-export function getAssetSearchHelperText(assetType: InvestmentAssetType) {
-  if (assetType === 'crypto') {
-    return 'Search crypto from Binance remote catalog. Results are cached after first load.';
-  }
-
-  if (assetType === 'stock' || assetType === 'etf' || assetType === 'fund') {
-    return 'Search stock, ETF, or fund from Yahoo Finance remote search.';
-  }
-
-  return 'This asset type is mostly manual. Price sync may not be available.';
+  return 'Provider';
 }

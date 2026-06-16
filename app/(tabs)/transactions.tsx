@@ -69,6 +69,87 @@ function getTransactionSign(type: TransactionType) {
   return '';
 }
 
+function isCryptoTransaction(transaction: Transaction) {
+  const noteText = transaction.note || '';
+  const titleText = transaction.title.toLowerCase();
+
+  return (
+    transaction.categoryName === 'Crypto Income' ||
+    transaction.categoryName === 'Crypto Payment' ||
+    titleText.startsWith('crypto income') ||
+    titleText.startsWith('crypto payment') ||
+    noteText.includes('Crypto qty:') ||
+    /[0-9.]+\s+[A-Z0-9]+\s+@\s+[0-9.]+\s+[A-Z]{3}/i.test(noteText)
+  );
+}
+
+function getCryptoTransactionKind(transaction: Transaction) {
+  if (transaction.type === 'expense') {
+    return 'payment';
+  }
+
+  if (
+    transaction.categoryName === 'Crypto Payment' ||
+    transaction.title.toLowerCase().startsWith('crypto payment') ||
+    transaction.note?.toLowerCase().includes('crypto payment')
+  ) {
+    return 'payment';
+  }
+
+  return 'income';
+}
+
+function canOpenEditTransaction(transaction: Transaction) {
+  return transaction.type === 'income' || transaction.type === 'expense';
+}
+
+function getTransactionPressTarget(transaction: Transaction) {
+  if (isCryptoTransaction(transaction)) {
+    return `/crypto-transaction-detail?transactionId=${transaction.id}`;
+  }
+
+  if (canOpenEditTransaction(transaction)) {
+    return `/edit-transaction?transactionId=${transaction.id}`;
+  }
+
+  return null;
+}
+
+function getCryptoTransactionMeta(transaction: Transaction) {
+  const rawText = `${transaction.title || ''} ${transaction.note || ''}`;
+  const structuredMatch = rawText.match(
+    /Crypto qty:\s*([0-9.]+)\s+([A-Z0-9]+)\s+•\s+Rate:\s*([0-9.]+)\s+([A-Z]{3})\s+•\s+Source:\s*([^•]+)/i
+  );
+  const legacyMatch = rawText.match(
+    /([0-9.]+)\s+([A-Z0-9]+)\s+@\s+([0-9.]+)\s+([A-Z]{3})/i
+  );
+  const match = structuredMatch || legacyMatch;
+
+  if (!match) {
+    const symbolFromTitle = transaction.title.match(
+      /Crypto\s+(?:Income|Payment)\s+([A-Z0-9]+)/i
+    );
+
+    return {
+      quantity: null as string | null,
+      symbol: symbolFromTitle?.[1] || 'Crypto',
+      rate: null as string | null,
+      currency: transaction.currency || '',
+      source: transaction.note?.includes('Source:')
+        ? transaction.note.split('Source:')[1]?.split('•')[0]?.trim() || 'Manual'
+        : 'Manual / fallback',
+    };
+  }
+
+  return {
+    quantity: match[1] || null,
+    symbol: (match[2] || 'Crypto').toUpperCase(),
+    rate: match[3] || null,
+    currency: (match[4] || transaction.currency || '').toUpperCase(),
+    source: structuredMatch ? (match[5] || 'Manual').trim() : 'Manual / legacy',
+  };
+}
+
 function matchFilter(transaction: Transaction, filter: FilterValue) {
   if (filter === 'all') return true;
   if (filter === 'saving') {
@@ -76,6 +157,24 @@ function matchFilter(transaction: Transaction, filter: FilterValue) {
   }
 
   return transaction.type === filter;
+}
+
+
+function formatCryptoQuantityLabel(value: string | null) {
+  if (!value) {
+    return '-';
+  }
+
+  const numeric = Number(value);
+
+  if (!Number.isFinite(numeric)) {
+    return value;
+  }
+
+  return numeric.toLocaleString('en-US', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 8,
+  });
 }
 
 function getTransactionAmountInBaseCurrency(
@@ -281,7 +380,6 @@ export default function TransactionsScreen() {
                   colors={colors}
                   currencyBase={defaultCurrency}
                   exchangeRates={exchangeRates}
-                  onPress={() => router.push(`/edit-transaction?transactionId=${transaction.id}`)}
                 />
               ))}
             </View>
@@ -297,13 +395,11 @@ function TransactionRow({
   colors,
   currencyBase,
   exchangeRates,
-  onPress,
 }: {
   transaction: Transaction;
   colors: ThemeColors;
   currencyBase: Currency;
   exchangeRates: ExchangeRates;
-  onPress: () => void;
 }) {
   const styles = createStyles(colors);
   const tone = getTransactionTone(colors, transaction.type);
@@ -324,21 +420,63 @@ function TransactionRow({
         currencyBase
       )}`
     : null;
+  const cryptoTransaction = isCryptoTransaction(transaction);
+  const cryptoKind = getCryptoTransactionKind(transaction);
+  const cryptoMeta = cryptoTransaction ? getCryptoTransactionMeta(transaction) : null;
+  const cryptoTone = cryptoKind === 'income' ? colors.income : colors.expense;
+
+  const pressTarget = getTransactionPressTarget(transaction);
 
   return (
-    <Pressable onPress={onPress} style={styles.transactionRow}>
-      <View style={[styles.transactionIcon, { borderColor: tone }]}>
-        <Ionicons name={getTransactionIcon(transaction.type) as any} size={20} color={tone} />
+    <Pressable
+      disabled={!pressTarget}
+      onPress={() => {
+        if (pressTarget) {
+          router.push(pressTarget as any);
+        }
+      }}
+      style={[
+        styles.transactionRow,
+        cryptoTransaction && styles.cryptoTransactionRow,
+        !pressTarget && styles.transactionRowDisabled,
+      ]}
+    >
+      <View style={[styles.transactionIcon, { borderColor: cryptoTransaction ? cryptoTone : tone }]}>
+        <Ionicons
+          name={cryptoTransaction ? 'logo-bitcoin' : (getTransactionIcon(transaction.type) as any)}
+          size={20}
+          color={cryptoTransaction ? cryptoTone : tone}
+        />
       </View>
 
       <View style={styles.transactionContent}>
-        <AppText variant="body" style={styles.transactionTitle} numberOfLines={1}>
-          {transaction.title}
-        </AppText>
+        <View style={styles.transactionTitleRow}>
+          <AppText variant="body" style={styles.transactionTitle} numberOfLines={1}>
+            {transaction.title}
+          </AppText>
+
+
+        </View>
 
         <AppText variant="caption" muted numberOfLines={1} style={styles.transactionMeta}>
           {transaction.categoryName || transaction.accountName || 'Transaction'}
         </AppText>
+
+        {cryptoTransaction && cryptoMeta ? (
+          <View style={styles.cryptoDetailBox}>
+            <View style={styles.cryptoDetailRow}>
+              <View style={styles.cryptoQuantityPill}>
+                <AppText variant="caption" style={styles.cryptoDetailLabel}>
+                  Qty
+                </AppText>
+
+                <AppText variant="caption" style={styles.cryptoQuantityValue}>
+                  {formatCryptoQuantityLabel(cryptoMeta.quantity)} {cryptoMeta.symbol}
+                </AppText>
+              </View>
+            </View>
+          </View>
+        ) : null}
       </View>
 
       <View style={styles.transactionAmountBox}>
@@ -363,7 +501,14 @@ function TransactionRow({
         ) : null}
       </View>
 
-      <Ionicons name="chevron-forward-outline" size={16} color={colors.textMuted} />
+      {pressTarget ? (
+        <Ionicons
+          name="chevron-forward-outline"
+          size={17}
+          color={colors.textMuted}
+          style={styles.transactionChevron}
+        />
+      ) : null}
     </Pressable>
   );
 }
@@ -508,6 +653,16 @@ function createStyles(colors: ThemeColors) {
       alignItems: 'center',
       gap: 13,
     },
+    cryptoTransactionRow: {
+      alignItems: 'flex-start',
+    },
+    transactionRowDisabled: {
+      opacity: 0.88,
+    },
+    transactionChevron: {
+      alignSelf: 'center',
+      marginLeft: -4,
+    },
     transactionIcon: {
       width: 44,
       height: 44,
@@ -524,28 +679,64 @@ function createStyles(colors: ThemeColors) {
     transactionTitle: {
       fontWeight: '900',
     },
+    transactionTitleRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      minWidth: 0,
+    },
+    cryptoDetailBox: {
+      marginTop: 8,
+      gap: 7,
+    },
+    cryptoDetailRow: {
+      flexDirection: 'row',
+      gap: 7,
+    },
+    cryptoQuantityPill: {
+      minWidth: 118,
+      maxWidth: '100%',
+      borderRadius: 13,
+      backgroundColor: colors.surfaceSoft,
+      borderWidth: 1,
+      borderColor: colors.border,
+      paddingHorizontal: 10,
+      paddingVertical: 8,
+      alignSelf: 'flex-start',
+    },
+    cryptoDetailLabel: {
+      color: colors.textMuted,
+      fontSize: 10,
+      fontWeight: '800',
+    },
+    cryptoQuantityValue: {
+      marginTop: 2,
+      color: colors.text,
+      fontWeight: '900',
+      flexShrink: 1,
+      lineHeight: 17,
+    },
     transactionMeta: {
       marginTop: 4,
     },
     transactionAmountBox: {
       alignItems: 'flex-end',
-      maxWidth: 150,
-      minWidth: 96,
+      maxWidth: 120,
+      minWidth: 80,
     },
     transactionAmount: {
       fontWeight: '900',
       textAlign: 'right',
-      maxWidth: 150,
+      maxWidth: 120,
     },
     transactionBaseAmount: {
       marginTop: 4,
       textAlign: 'right',
-      maxWidth: 150,
+      maxWidth: 120,
     },
     transactionRateNote: {
       marginTop: 3,
       textAlign: 'right',
-      maxWidth: 150,
+      maxWidth: 120,
       fontSize: 10,
       lineHeight: 13,
     },

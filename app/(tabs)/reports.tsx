@@ -364,6 +364,163 @@ type InvestmentPerformanceSummary = {
   realizedPnL: number;
 };
 
+type CryptoAssetSummary = {
+  symbol: string;
+  name: string;
+  quantity: number;
+  currentValue: number;
+  incomeValue: number;
+  paymentValue: number;
+  realizedPnL: number;
+};
+
+function getCryptoReportSummary(
+  holdings: InvestmentHolding[],
+  orders: InvestmentOrder[],
+  defaultCurrency: Currency,
+  exchangeRates: Record<Currency, number>
+) {
+  const cryptoHoldings = holdings.filter((holding) => holding.assetType === 'crypto');
+  const cryptoOrders = orders.filter((order) => order.assetType === 'crypto');
+  const cryptoIncomeOrders = cryptoOrders.filter((order) => order.orderType === 'buy');
+  const cryptoPaymentOrders = cryptoOrders.filter((order) => order.orderType === 'sell');
+
+  const holdingValue = cryptoHoldings.reduce((total, holding) => {
+    return (
+      total +
+      convertCurrencyAmount(
+        getHoldingValue(holding),
+        holding.currency,
+        defaultCurrency,
+        exchangeRates
+      )
+    );
+  }, 0);
+
+  const costBasis = cryptoHoldings.reduce((total, holding) => {
+    return (
+      total +
+      convertCurrencyAmount(
+        getHoldingCost(holding),
+        holding.currency,
+        defaultCurrency,
+        exchangeRates
+      )
+    );
+  }, 0);
+
+  const incomeValue = cryptoIncomeOrders.reduce((total, order) => {
+    return (
+      total +
+      convertCurrencyAmount(
+        order.totalAmount,
+        order.currency,
+        defaultCurrency,
+        exchangeRates
+      )
+    );
+  }, 0);
+
+  const paymentValue = cryptoPaymentOrders.reduce((total, order) => {
+    return (
+      total +
+      convertCurrencyAmount(
+        order.totalAmount,
+        order.currency,
+        defaultCurrency,
+        exchangeRates
+      )
+    );
+  }, 0);
+
+  const realizedPnL = cryptoPaymentOrders.reduce((total, order) => {
+    return (
+      total +
+      convertCurrencyAmount(
+        order.realizedPnL,
+        order.currency,
+        defaultCurrency,
+        exchangeRates
+      )
+    );
+  }, 0);
+
+  const assetMap = new Map<string, CryptoAssetSummary>();
+
+  cryptoHoldings.forEach((holding) => {
+    const key = holding.symbol.trim().toUpperCase();
+    const currentValue = convertCurrencyAmount(
+      getHoldingValue(holding),
+      holding.currency,
+      defaultCurrency,
+      exchangeRates
+    );
+
+    assetMap.set(key, {
+      symbol: key,
+      name: holding.name,
+      quantity: holding.quantity,
+      currentValue,
+      incomeValue: 0,
+      paymentValue: 0,
+      realizedPnL: 0,
+    });
+  });
+
+  cryptoOrders.forEach((order) => {
+    const key = order.symbol.trim().toUpperCase();
+    const currentItem =
+      assetMap.get(key) || {
+        symbol: key,
+        name: order.name,
+        quantity: 0,
+        currentValue: 0,
+        incomeValue: 0,
+        paymentValue: 0,
+        realizedPnL: 0,
+      };
+    const orderValue = convertCurrencyAmount(
+      order.totalAmount,
+      order.currency,
+      defaultCurrency,
+      exchangeRates
+    );
+    const orderPnl = convertCurrencyAmount(
+      order.realizedPnL,
+      order.currency,
+      defaultCurrency,
+      exchangeRates
+    );
+
+    assetMap.set(key, {
+      ...currentItem,
+      incomeValue:
+        currentItem.incomeValue + (order.orderType === 'buy' ? orderValue : 0),
+      paymentValue:
+        currentItem.paymentValue + (order.orderType === 'sell' ? orderValue : 0),
+      realizedPnL: currentItem.realizedPnL + orderPnl,
+    });
+  });
+
+  const assetSummaries = Array.from(assetMap.values()).sort(
+    (firstItem, secondItem) => secondItem.currentValue - firstItem.currentValue
+  );
+
+  return {
+    holdingValue,
+    costBasis,
+    unrealizedPnL: holdingValue - costBasis,
+    incomeValue,
+    paymentValue,
+    netFlow: incomeValue - paymentValue,
+    realizedPnL,
+    holdingCount: cryptoHoldings.length,
+    incomeCount: cryptoIncomeOrders.length,
+    paymentCount: cryptoPaymentOrders.length,
+    assetSummaries,
+  };
+}
+
 function getInvestmentPerformanceSummaries(
   orders: InvestmentOrder[],
   selectedYear: number,
@@ -532,8 +689,25 @@ export default function ReportsScreen() {
     return getMaxInvestmentPerformanceValue(investmentPerformanceSummaries);
   }, [investmentPerformanceSummaries]);
 
+  const cryptoReportSummary = useMemo(() => {
+    return getCryptoReportSummary(
+      investmentHoldings,
+      periodInvestmentOrders,
+      defaultCurrency,
+      exchangeRates
+    );
+  }, [
+    investmentHoldings,
+    periodInvestmentOrders,
+    defaultCurrency,
+    exchangeRates,
+  ]);
+
   const unrealizedPnlPositive = investmentSummary.unrealizedPnL >= 0;
   const realizedPnlPositive = investmentSummary.realizedPnL >= 0;
+  const cryptoUnrealizedPositive = cryptoReportSummary.unrealizedPnL >= 0;
+  const cryptoRealizedPositive = cryptoReportSummary.realizedPnL >= 0;
+  const cryptoNetFlowPositive = cryptoReportSummary.netFlow >= 0;
 
   const categoryBreakdown = useMemo(() => {
     return buildCategoryBreakdown(periodTransactions);
@@ -773,6 +947,99 @@ export default function ReportsScreen() {
       </View>
 
       <View style={styles.sectionHeader}>
+        <AppText variant="subtitle">Crypto Report</AppText>
+
+        <AppText variant="caption" muted>
+          {cryptoReportSummary.incomeCount + cryptoReportSummary.paymentCount} crypto trx
+        </AppText>
+      </View>
+
+      <View style={styles.cryptoHeroCard}>
+        <View style={styles.cryptoHeroIcon}>
+          <Ionicons name="logo-bitcoin" size={24} color={colors.black} />
+        </View>
+
+        <View style={styles.cryptoHeroTextBox}>
+          <AppText variant="caption" style={styles.cryptoHeroLabel}>
+            Crypto Holdings • {defaultCurrency} base
+          </AppText>
+
+          <AppText variant="title" style={styles.cryptoHeroValue} numberOfLines={1}>
+            {formatCompactCurrency(cryptoReportSummary.holdingValue, defaultCurrency)}
+          </AppText>
+
+          <AppText variant="caption" style={styles.cryptoHeroDescription} numberOfLines={2}>
+            {cryptoReportSummary.holdingCount} crypto assets • net flow{' '}
+            {formatCompactCurrency(cryptoReportSummary.netFlow, defaultCurrency)}
+          </AppText>
+        </View>
+      </View>
+
+      <View style={styles.grid}>
+        <StatCard
+          label="Crypto Income"
+          value={formatCompactCurrency(cryptoReportSummary.incomeValue, defaultCurrency)}
+          tone="income"
+        />
+
+        <StatCard
+          label="Crypto Payment"
+          value={formatCompactCurrency(cryptoReportSummary.paymentValue, defaultCurrency)}
+          tone="expense"
+        />
+
+        <StatCard
+          label="Crypto Net Flow"
+          value={`${cryptoNetFlowPositive ? '+' : ''}${formatCompactCurrency(
+            cryptoReportSummary.netFlow,
+            defaultCurrency
+          )}`}
+          tone={cryptoNetFlowPositive ? 'income' : 'expense'}
+        />
+
+        <StatCard
+          label="Crypto Realized P/L"
+          value={`${cryptoRealizedPositive ? '+' : ''}${formatCompactCurrency(
+            cryptoReportSummary.realizedPnL,
+            defaultCurrency
+          )}`}
+          tone={cryptoRealizedPositive ? 'income' : 'expense'}
+        />
+
+        <StatCard
+          label="Crypto Unrealized P/L"
+          value={`${cryptoUnrealizedPositive ? '+' : ''}${formatCompactCurrency(
+            cryptoReportSummary.unrealizedPnL,
+            defaultCurrency
+          )}`}
+          tone={cryptoUnrealizedPositive ? 'income' : 'expense'}
+        />
+      </View>
+
+      <View style={styles.cryptoBreakdownCard}>
+        {cryptoReportSummary.assetSummaries.length === 0 ? (
+          <View style={styles.emptyBox}>
+            <AppText variant="body" style={styles.emptyTitle}>
+              No crypto activity
+            </AppText>
+
+            <AppText variant="caption" muted style={styles.emptyDescription}>
+              Crypto income, payments, and holdings will appear here once recorded.
+            </AppText>
+          </View>
+        ) : null}
+
+        {cryptoReportSummary.assetSummaries.map((asset) => (
+          <CryptoAssetRow
+            key={asset.symbol}
+            asset={asset}
+            currency={defaultCurrency}
+            styles={styles}
+          />
+        ))}
+      </View>
+
+      <View style={styles.sectionHeader}>
         <AppText variant="subtitle">Investment Performance</AppText>
 
         <AppText variant="caption" muted>
@@ -949,6 +1216,80 @@ function InvestmentPerformanceChart({
         <AppText variant="caption" style={styles.investmentChartFooterValue}>
           {formatCompactCurrency(maxValue, currency)}
         </AppText>
+      </View>
+    </View>
+  );
+}
+
+function CryptoAssetRow({
+  asset,
+  currency,
+  styles,
+}: {
+  asset: CryptoAssetSummary;
+  currency: Currency;
+  styles: ReturnType<typeof createStyles>;
+}) {
+  const realizedPositive = asset.realizedPnL >= 0;
+
+  return (
+    <View style={styles.cryptoAssetRow}>
+      <View style={styles.cryptoAssetTop}>
+        <View style={styles.cryptoAssetNameBox}>
+          <AppText variant="body" style={styles.cryptoAssetSymbol} numberOfLines={1}>
+            {asset.symbol}
+          </AppText>
+
+          <AppText variant="caption" muted numberOfLines={1}>
+            {asset.name} • Qty {asset.quantity.toLocaleString('id-ID', {
+              maximumFractionDigits: 8,
+            })}
+          </AppText>
+        </View>
+
+        <AppText variant="body" style={styles.cryptoAssetValue} numberOfLines={1}>
+          {formatCompactCurrency(asset.currentValue, currency)}
+        </AppText>
+      </View>
+
+      <View style={styles.cryptoAssetMetrics}>
+        <View style={styles.cryptoAssetMetric}>
+          <AppText variant="caption" muted>
+            Income
+          </AppText>
+
+          <AppText variant="caption" style={styles.cryptoAssetMetricValue} numberOfLines={1}>
+            {formatCompactCurrency(asset.incomeValue, currency)}
+          </AppText>
+        </View>
+
+        <View style={styles.cryptoAssetMetric}>
+          <AppText variant="caption" muted>
+            Payment
+          </AppText>
+
+          <AppText variant="caption" style={styles.cryptoAssetMetricValue} numberOfLines={1}>
+            {formatCompactCurrency(asset.paymentValue, currency)}
+          </AppText>
+        </View>
+
+        <View style={styles.cryptoAssetMetric}>
+          <AppText variant="caption" muted>
+            Realized P/L
+          </AppText>
+
+          <AppText
+            variant="caption"
+            style={[
+              styles.cryptoAssetMetricValue,
+              realizedPositive ? styles.positiveText : styles.negativeText,
+            ]}
+            numberOfLines={1}
+          >
+            {realizedPositive ? '+' : ''}
+            {formatCompactCurrency(asset.realizedPnL, currency)}
+          </AppText>
+        </View>
       </View>
     </View>
   );
@@ -1236,6 +1577,104 @@ function createStyles(colors: ThemeColors) {
     marginTop: 4,
     color: 'rgba(0,0,0,0.62)',
     fontWeight: '800',
+  },
+  cryptoHeroCard: {
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 26,
+    padding: 18,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    marginBottom: 14,
+  },
+  cryptoHeroIcon: {
+    width: 54,
+    height: 54,
+    borderRadius: 20,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cryptoHeroTextBox: {
+    flex: 1,
+    minWidth: 0,
+  },
+  cryptoHeroLabel: {
+    color: colors.textMuted,
+    fontWeight: '900',
+  },
+  cryptoHeroValue: {
+    marginTop: 5,
+    color: colors.text,
+    fontWeight: '900',
+  },
+  cryptoHeroDescription: {
+    marginTop: 4,
+    color: colors.textMuted,
+    fontWeight: '800',
+  },
+  cryptoBreakdownCard: {
+    marginTop: 14,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 24,
+    padding: 15,
+    gap: 12,
+  },
+  cryptoAssetRow: {
+    borderRadius: 19,
+    backgroundColor: colors.surfaceSoft,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: 13,
+    gap: 12,
+  },
+  cryptoAssetTop: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  cryptoAssetNameBox: {
+    flex: 1,
+    minWidth: 0,
+  },
+  cryptoAssetSymbol: {
+    color: colors.text,
+    fontWeight: '900',
+  },
+  cryptoAssetValue: {
+    color: colors.text,
+    fontWeight: '900',
+    maxWidth: 132,
+    textAlign: 'right',
+  },
+  cryptoAssetMetrics: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  cryptoAssetMetric: {
+    flex: 1,
+    borderRadius: 15,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: 10,
+    paddingVertical: 9,
+  },
+  cryptoAssetMetricValue: {
+    marginTop: 4,
+    color: colors.text,
+    fontWeight: '900',
+  },
+  positiveText: {
+    color: colors.income,
+  },
+  negativeText: {
+    color: colors.expense,
   },
   investmentLegendRow: {
     flexDirection: 'row',
