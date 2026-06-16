@@ -87,8 +87,9 @@ export default function AddInvestmentHoldingScreen() {
   const [currentPrice, setCurrentPrice] = useState('');
   const [isFetchingCurrentPrice, setIsFetchingCurrentPrice] = useState(false);
   const [currentPriceStatus, setCurrentPriceStatus] = useState(
-    'Current price can be filled manually or fetched from provider.'
+    'Input or pick an asset. Current price will be detected automatically when available.'
   );
+  const [currentPriceProvider, setCurrentPriceProvider] = useState('');
   const [note, setNote] = useState('');
 
   const selectedAccount = investmentAccounts.find((account) => account.id === accountId);
@@ -146,44 +147,75 @@ export default function AddInvestmentHoldingScreen() {
     };
   }
 
-  async function handleFetchCurrentPrice() {
-    if (!selectedAccount) {
-      Alert.alert('Finance OS Mobile', 'Choose broker or crypto wallet account first.');
-      return;
-    }
 
-    if (!symbol.trim()) {
-      Alert.alert('Finance OS Mobile', 'Input or search asset symbol first.');
+  useEffect(() => {
+    const normalizedSymbol = symbol.trim().toUpperCase();
+
+    if (!selectedAccount || !normalizedSymbol) {
+      setIsFetchingCurrentPrice(false);
+      setCurrentPriceProvider('');
+      setCurrentPriceStatus(
+        'Input or pick an asset. Current price will be detected automatically when available.'
+      );
       return;
     }
 
     const previewHolding = buildPreviewHolding();
 
     if (!isPriceSyncSupportedHolding(previewHolding)) {
+      setIsFetchingCurrentPrice(false);
+      setCurrentPriceProvider('');
       setCurrentPriceStatus(
-        'Live current price is only available for crypto, stock, ETF, and fund assets.'
+        'Realtime current price is not available for this asset type. Please input price manually.'
       );
       return;
     }
 
-    setIsFetchingCurrentPrice(true);
-    setCurrentPriceStatus('Fetching current price from provider...');
+    let cancelled = false;
+    const timeout = setTimeout(async () => {
+      setIsFetchingCurrentPrice(true);
+      setCurrentPriceStatus('Detecting actual current price...');
 
-    try {
-      const result = await fetchInvestmentPriceForHolding(previewHolding, exchangeRates);
+      try {
+        const result = await fetchInvestmentPriceForHolding(previewHolding, exchangeRates);
 
-      setCurrentPrice(String(result.currentPrice));
-      setCurrentPriceStatus(`Current price loaded from ${result.provider}.`);
-    } catch (error) {
-      setCurrentPriceStatus(
-        error instanceof Error
-          ? error.message
-          : 'Unable to fetch current price. You can still input it manually.'
-      );
-    } finally {
-      setIsFetchingCurrentPrice(false);
-    }
-  }
+        if (cancelled) {
+          return;
+        }
+
+        setCurrentPrice(String(result.currentPrice));
+        setCurrentPriceProvider(result.provider);
+        setCurrentPriceStatus(`Actual current price detected from ${result.provider}.`);
+      } catch (error) {
+        if (cancelled) {
+          return;
+        }
+
+        setCurrentPriceProvider('');
+        setCurrentPriceStatus(
+          error instanceof Error
+            ? `${error.message} You can still input it manually.`
+            : 'Unable to detect current price. You can still input it manually.'
+        );
+      } finally {
+        if (!cancelled) {
+          setIsFetchingCurrentPrice(false);
+        }
+      }
+    }, 450);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timeout);
+    };
+  }, [
+    selectedAccount?.id,
+    name,
+    symbol,
+    assetType,
+    currency,
+    exchangeRates,
+  ]);
 
   function handleSubmit() {
     if (!selectedAccount) {
@@ -434,30 +466,33 @@ export default function AddInvestmentHoldingScreen() {
 
           <View style={styles.currentPriceCard}>
             <View style={styles.currentPriceHeader}>
+              <View style={styles.currentPriceIcon}>
+                <Ionicons
+                  name={
+                    isFetchingCurrentPrice
+                      ? 'sync-outline'
+                      : currentPriceProvider
+                        ? 'flash-outline'
+                        : 'create-outline'
+                  }
+                  size={18}
+                  color={currentPriceProvider ? colors.black : colors.text}
+                />
+              </View>
+
               <View style={styles.currentPriceTitleBox}>
                 <AppText variant="caption" muted>
                   Current Price
                 </AppText>
 
                 <AppText variant="body" style={styles.currentPriceTitle}>
-                  Market price per unit
+                  {isFetchingCurrentPrice
+                    ? 'Detecting price...'
+                    : currentPriceProvider
+                      ? 'Realtime price detected'
+                      : 'Manual fallback available'}
                 </AppText>
               </View>
-
-              <Pressable
-                onPress={handleFetchCurrentPrice}
-                disabled={isFetchingCurrentPrice}
-                style={[
-                  styles.fetchCurrentPriceButton,
-                  isFetchingCurrentPrice && styles.disabledButton,
-                ]}
-              >
-                <Ionicons name="cloud-download-outline" size={16} color={colors.black} />
-
-                <AppText variant="caption" style={styles.fetchCurrentPriceText}>
-                  {isFetchingCurrentPrice ? 'Fetching' : 'Use Live Price'}
-                </AppText>
-              </Pressable>
             </View>
 
             <NumericAmountInput
@@ -468,7 +503,7 @@ export default function AddInvestmentHoldingScreen() {
               currency={currency}
               icon="pulse-outline"
               quickValues={currency === 'IDR' ? ['1000', '10000', '100000'] : ['1', '10', '100']}
-              helperText="Auto-fill from provider or input current market price manually."
+              helperText="Auto-filled when supported. You can edit manually if unavailable."
               previewLabel="Current Market Price"
               allowDecimal
             />
@@ -537,8 +572,15 @@ function createStyles(colors: ThemeColors) {
     currentPriceHeader: {
       flexDirection: 'row',
       alignItems: 'center',
-      justifyContent: 'space-between',
       gap: 12,
+    },
+    currentPriceIcon: {
+      width: 42,
+      height: 42,
+      borderRadius: 16,
+      backgroundColor: colors.primary,
+      alignItems: 'center',
+      justifyContent: 'center',
     },
     currentPriceTitleBox: {
       flex: 1,
@@ -547,20 +589,6 @@ function createStyles(colors: ThemeColors) {
     currentPriceTitle: {
       marginTop: 3,
       color: colors.text,
-      fontWeight: '900',
-    },
-    fetchCurrentPriceButton: {
-      minHeight: 40,
-      borderRadius: 15,
-      backgroundColor: colors.primary,
-      paddingHorizontal: 12,
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'center',
-      gap: 7,
-    },
-    fetchCurrentPriceText: {
-      color: colors.black,
       fontWeight: '900',
     },
     currentPriceStatus: {

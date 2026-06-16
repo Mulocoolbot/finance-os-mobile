@@ -410,10 +410,10 @@ export default function InvestmentHoldingDetailScreen() {
         </View>
 
         <Pressable
-          onPress={() => router.push(`/update-investment-holding-price?holdingId=${holding.id}`)}
+          onPress={() => router.push(`/edit-investment-holding?holdingId=${holding.id}`)}
           style={styles.headerActionButton}
         >
-          <Ionicons name="create-outline" size={20} color={colors.text} />
+          <Ionicons name="settings-outline" size={20} color={colors.text} />
         </Pressable>
       </View>
 
@@ -1183,7 +1183,7 @@ export default function InvestmentHoldingDetailScreen() {
           </AppText>
 
           <AppText variant="caption" muted style={styles.dangerDescription}>
-            Delete only if this holding should be removed from portfolio tracking.
+            Manual holdings without order history can be deleted safely. Holdings with buy/sell history are protected.
           </AppText>
         </View>
 

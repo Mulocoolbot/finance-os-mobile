@@ -1,12 +1,13 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Alert, Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { AppText } from '../src/components/ui/AppText';
 import { NumericAmountInput } from '../src/components/ui/NumericAmountInput';
 import { Screen } from '../src/components/ui/Screen';
 import { ThemeColors } from '../src/constants/colors';
 import { useThemeColors } from '../src/hooks/useThemeColors';
+import { fetchInvestmentPriceForHolding, isPriceSyncSupportedHolding } from '../src/services/investmentPriceSync';
 import { useFinanceStore } from '../src/stores/useFinanceStore';
 import { Currency, InvestmentHolding, InvestmentOrderType } from '../src/types/finance';
 import { formatCurrency } from '../src/utils/currency';
@@ -68,6 +69,13 @@ export default function AddInvestmentOrderScreen() {
     holding ? holding.currency : defaultCurrency
   );
   const [price, setPrice] = useState(holding ? String(holding.currentPrice) : '');
+  const [priceProvider, setPriceProvider] = useState('');
+  const [priceStatus, setPriceStatus] = useState(
+    holding
+      ? 'Order price will be detected automatically when market data is available.'
+      : 'Choose holding first.'
+  );
+  const [isFetchingPrice, setIsFetchingPrice] = useState(false);
   const [fee, setFee] = useState('');
   const [note, setNote] = useState('');
 
@@ -184,6 +192,77 @@ export default function AddInvestmentOrderScreen() {
     defaultCurrency,
     exchangeRates,
   ]);
+
+  useEffect(() => {
+    if (!holding) {
+      setIsFetchingPrice(false);
+      setPriceProvider('');
+      setPriceStatus('Choose holding first.');
+      return;
+    }
+
+    if (!isPriceSyncSupportedHolding(holding)) {
+      setIsFetchingPrice(false);
+      setPriceProvider('');
+      setPriceStatus(
+        'Realtime market price is not available for this asset. Please input order price manually.'
+      );
+      return;
+    }
+
+    let cancelled = false;
+    const timeout = setTimeout(async () => {
+      setIsFetchingPrice(true);
+      setPriceStatus(
+        orderType === 'sell'
+          ? 'Detecting actual sell price...'
+          : 'Detecting actual buy price...'
+      );
+
+      try {
+        const result = await fetchInvestmentPriceForHolding(holding, exchangeRates);
+
+        if (cancelled) {
+          return;
+        }
+
+        const convertedPrice = convertCurrencyAmount(
+          result.currentPrice,
+          holding.currency,
+          orderCurrency,
+          exchangeRates
+        );
+
+        setPrice(String(convertedPrice));
+        setPriceProvider(result.provider);
+        setPriceStatus(
+          `${orderType === 'sell' ? 'Sell' : 'Buy'} price detected from ${
+            result.provider
+          }.`
+        );
+      } catch (error) {
+        if (cancelled) {
+          return;
+        }
+
+        setPriceProvider('');
+        setPriceStatus(
+          error instanceof Error
+            ? `${error.message} You can input order price manually.`
+            : 'Unable to detect order price. You can input it manually.'
+        );
+      } finally {
+        if (!cancelled) {
+          setIsFetchingPrice(false);
+        }
+      }
+    }, 450);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timeout);
+    };
+  }, [holding?.id, holding?.currentPrice, orderType, orderCurrency, exchangeRates]);
 
   function handleSubmit() {
     if (!holding) {
@@ -501,6 +580,34 @@ export default function AddInvestmentOrderScreen() {
         </View>
       ) : null}
 
+      <View style={styles.autoPriceStatusCard}>
+        <View style={styles.autoPriceIcon}>
+          <Ionicons
+            name={isFetchingPrice ? 'sync-outline' : priceProvider ? 'flash-outline' : 'create-outline'}
+            size={17}
+            color={priceProvider ? colors.black : colors.text}
+          />
+        </View>
+
+        <View style={styles.autoPriceTextBox}>
+          <AppText variant="caption" muted>
+            {orderType === 'sell' ? 'Sell Price' : 'Buy Price'}
+          </AppText>
+
+          <AppText variant="body" style={styles.autoPriceTitle} numberOfLines={1}>
+            {isFetchingPrice
+              ? 'Detecting price...'
+              : priceProvider
+                ? 'Realtime price detected'
+                : 'Manual fallback available'}
+          </AppText>
+
+          <AppText variant="caption" muted style={styles.autoPriceStatus}>
+            {priceStatus}
+          </AppText>
+        </View>
+      </View>
+
       <NumericAmountInput
         label="Price Per Unit"
         value={price}
@@ -509,7 +616,7 @@ export default function AddInvestmentOrderScreen() {
         currency={orderCurrency}
         icon="pricetag-outline"
         quickValues={orderCurrency === 'IDR' ? ['1000', '10000', '100000'] : ['1', '10', '100']}
-        helperText="Order price per unit."
+        helperText="Auto-filled when supported. You can edit manually if unavailable."
       />
 
       <NumericAmountInput
@@ -906,6 +1013,38 @@ function createStyles(colors: ThemeColors) {
     },
     accountImpactValue: {
       fontWeight: '900',
+    },
+    autoPriceStatusCard: {
+      marginBottom: 18,
+      borderRadius: 18,
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+      padding: 12,
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: 10,
+    },
+    autoPriceIcon: {
+      width: 36,
+      height: 36,
+      borderRadius: 14,
+      backgroundColor: colors.primary,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    autoPriceTextBox: {
+      flex: 1,
+      minWidth: 0,
+    },
+    autoPriceTitle: {
+      marginTop: 2,
+      color: colors.text,
+      fontWeight: '900',
+    },
+    autoPriceStatus: {
+      marginTop: 4,
+      lineHeight: 18,
     },
     field: {
       marginBottom: 18,

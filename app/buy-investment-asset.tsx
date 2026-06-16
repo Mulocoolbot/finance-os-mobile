@@ -7,7 +7,7 @@ import { NumericAmountInput } from '../src/components/ui/NumericAmountInput';
 import { Screen } from '../src/components/ui/Screen';
 import { ThemeColors } from '../src/constants/colors';
 import { useThemeColors } from '../src/hooks/useThemeColors';
-import { fetchInvestmentPriceForHolding } from '../src/services/investmentPriceSync';
+import { fetchInvestmentPriceForHolding, isPriceSyncSupportedHolding } from '../src/services/investmentPriceSync';
 import { useFinanceStore } from '../src/stores/useFinanceStore';
 import { Currency, InvestmentAssetType, InvestmentHolding } from '../src/types/finance';
 import { formatCurrency } from '../src/utils/currency';
@@ -100,7 +100,7 @@ export default function BuyInvestmentAssetScreen() {
   const [fee, setFee] = useState('0');
   const [note, setNote] = useState('');
   const [isFetchingPrice, setIsFetchingPrice] = useState(false);
-  const [priceStatus, setPriceStatus] = useState('Pick an asset, then fetch live price or input buy price manually.');
+  const [priceStatus, setPriceStatus] = useState('Pick or type an asset. Current price will be detected automatically when available.');
   const [priceProvider, setPriceProvider] = useState(params.pickedProvider || '');
 
   useEffect(() => {
@@ -159,46 +159,82 @@ export default function BuyInvestmentAssetScreen() {
     grossAmount > 0 &&
     parsedFee >= 0;
 
-  async function handleFetchPrice() {
-    if (!selectedAccount) {
-      Alert.alert('Finance OS Mobile', 'Choose an account first.');
-      return;
-    }
 
+  useEffect(() => {
     const normalizedSymbol = symbol.trim().toUpperCase();
 
-    if (!normalizedSymbol) {
-      Alert.alert('Finance OS Mobile', 'Input or pick asset symbol first.');
+    if (!selectedAccount || !normalizedSymbol) {
+      setIsFetchingPrice(false);
+      setPriceProvider('');
+      setPriceStatus(
+        'Pick or type an asset. Current price will be detected automatically when available.'
+      );
       return;
     }
 
-    setIsFetchingPrice(true);
-    setPriceStatus('Fetching live price...');
+    const tempHolding = makeTempHolding({
+      accountId: selectedAccount.id,
+      name: name.trim() || normalizedSymbol,
+      symbol: normalizedSymbol,
+      assetType,
+      price: 0,
+      currency,
+    });
 
-    try {
-      const tempHolding = makeTempHolding({
-        accountId: selectedAccount.id,
-        name: name.trim() || normalizedSymbol,
-        symbol: normalizedSymbol,
-        assetType,
-        price: parsedPrice || 0,
-        currency,
-      });
-      const result = await fetchInvestmentPriceForHolding(tempHolding, exchangeRates);
-
-      setPrice(String(result.currentPrice));
-      setPriceProvider(result.provider);
-      setPriceStatus(`Live price loaded from ${result.provider}.`);
-    } catch (error) {
-      setPriceStatus(
-        error instanceof Error
-          ? error.message
-          : 'Unable to fetch live price. You can input buy price manually.'
-      );
-    } finally {
+    if (!isPriceSyncSupportedHolding(tempHolding)) {
       setIsFetchingPrice(false);
+      setPriceProvider('');
+      setPriceStatus(
+        'Realtime price is not available for this asset type. Please input price manually.'
+      );
+      return;
     }
-  }
+
+    let cancelled = false;
+    const timeout = setTimeout(async () => {
+      setIsFetchingPrice(true);
+      setPriceStatus('Detecting actual current price...');
+
+      try {
+        const result = await fetchInvestmentPriceForHolding(tempHolding, exchangeRates);
+
+        if (cancelled) {
+          return;
+        }
+
+        setPrice(String(result.currentPrice));
+        setPriceProvider(result.provider);
+        setPriceStatus(`Actual current price detected from ${result.provider}.`);
+      } catch (error) {
+        if (cancelled) {
+          return;
+        }
+
+        setPriceProvider('');
+        setPriceStatus(
+          error instanceof Error
+            ? `${error.message} You can input buy price manually.`
+            : 'Unable to detect current price. You can input buy price manually.'
+        );
+      } finally {
+        if (!cancelled) {
+          setIsFetchingPrice(false);
+        }
+      }
+    }, 450);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timeout);
+    };
+  }, [
+    selectedAccount?.id,
+    name,
+    symbol,
+    assetType,
+    currency,
+    exchangeRates,
+  ]);
 
   function handleSubmit() {
     if (!canSubmit || !selectedAccount) {
@@ -415,21 +451,40 @@ export default function BuyInvestmentAssetScreen() {
           </View>
         </View>
 
-        <Pressable
-          onPress={handleFetchPrice}
-          disabled={isFetchingPrice}
-          style={[styles.fetchPriceButton, isFetchingPrice && styles.disabledButton]}
-        >
-          <Ionicons name="cloud-download-outline" size={17} color={colors.black} />
 
-          <AppText variant="body" style={styles.fetchPriceButtonText}>
-            {isFetchingPrice ? 'Fetching Price...' : 'Use Live Price'}
-          </AppText>
-        </Pressable>
+        <View style={styles.autoPriceStatusCard}>
+          <View style={styles.autoPriceIcon}>
+            <Ionicons
+              name={
+                isFetchingPrice
+                  ? 'sync-outline'
+                  : priceProvider
+                    ? 'flash-outline'
+                    : 'create-outline'
+              }
+              size={17}
+              color={priceProvider ? colors.black : colors.text}
+            />
+          </View>
 
-        <AppText variant="caption" muted style={styles.statusText}>
-          {priceStatus}
-        </AppText>
+          <View style={styles.autoPriceTextBox}>
+            <AppText variant="caption" muted>
+              Current Price
+            </AppText>
+
+            <AppText variant="body" style={styles.autoPriceTitle} numberOfLines={1}>
+              {isFetchingPrice
+                ? 'Detecting price...'
+                : priceProvider
+                  ? 'Realtime price detected'
+                  : 'Manual fallback available'}
+            </AppText>
+
+            <AppText variant="caption" muted style={styles.statusText}>
+              {priceStatus}
+            </AppText>
+          </View>
+        </View>
       </View>
 
       <View style={styles.modeCard}>
@@ -568,7 +623,7 @@ export default function BuyInvestmentAssetScreen() {
             ? ['1000', '10000', '100000', '1000000']
             : ['1', '10', '100', '1000']
         }
-        helperText="This becomes your entry price. Live price can be fetched above."
+        helperText="Auto-filled when supported. You can still edit manually if unavailable."
         previewLabel="Entry Price"
         allowDecimal
       />
@@ -927,18 +982,31 @@ function createStyles(colors: ThemeColors) {
     currencyChipTextActive: {
       color: colors.black,
     },
-    fetchPriceButton: {
-      minHeight: 48,
-      borderRadius: 17,
+    autoPriceStatusCard: {
+      borderRadius: 18,
+      backgroundColor: colors.surfaceSoft,
+      borderWidth: 1,
+      borderColor: colors.border,
+      padding: 12,
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: 10,
+    },
+    autoPriceIcon: {
+      width: 36,
+      height: 36,
+      borderRadius: 14,
       backgroundColor: colors.primary,
       alignItems: 'center',
       justifyContent: 'center',
-      flexDirection: 'row',
-      gap: 8,
-      paddingHorizontal: 14,
     },
-    fetchPriceButtonText: {
-      color: colors.black,
+    autoPriceTextBox: {
+      flex: 1,
+      minWidth: 0,
+    },
+    autoPriceTitle: {
+      marginTop: 2,
+      color: colors.text,
       fontWeight: '900',
     },
     disabledButton: {

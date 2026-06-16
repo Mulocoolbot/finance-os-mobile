@@ -87,6 +87,19 @@ type AddInvestmentHoldingPayload = {
   note?: string;
 };
 
+type UpdateInvestmentHoldingPayload = {
+  holdingId: string;
+  accountId: string;
+  name: string;
+  symbol: string;
+  assetType: InvestmentAssetType;
+  quantity: number;
+  averagePrice: number;
+  currentPrice: number;
+  currency: Currency;
+  note?: string;
+};
+
 type UpdateInvestmentHoldingPricePayload = {
   holdingId: string;
   currentPrice: number;
@@ -235,6 +248,7 @@ type FinanceStore = {
   updateBudget: (payload: UpdateBudgetPayload) => ActionResult;
   deleteBudget: (budgetId: string) => ActionResult;
   addInvestmentHolding: (payload: AddInvestmentHoldingPayload) => ActionResult;
+  updateInvestmentHolding: (payload: UpdateInvestmentHoldingPayload) => ActionResult;
   buyInvestmentAsset: (payload: BuyInvestmentAssetPayload) => ActionResult;
   updateInvestmentHoldingPrice: (payload: UpdateInvestmentHoldingPricePayload) => ActionResult;
   upsertInvestmentPriceHistoryPoint: (
@@ -2426,6 +2440,171 @@ export const useFinanceStore = create<FinanceStore>((set, get) => {
     };
   },
 
+  updateInvestmentHolding: (payload) => {
+    const {
+      accounts,
+      investmentHoldings,
+      investmentOrders,
+      investmentPriceHistory,
+    } = get();
+
+    const targetHolding = investmentHoldings.find(
+      (holding) => holding.id === payload.holdingId
+    );
+
+    if (!targetHolding) {
+      return {
+        success: false,
+        message: 'Investment holding not found.',
+      };
+    }
+
+    const account = accounts.find((item) => item.id === payload.accountId);
+
+    if (!account) {
+      return {
+        success: false,
+        message: 'Investment account not found.',
+      };
+    }
+
+    if (account.type !== 'broker' && account.type !== 'crypto_wallet') {
+      return {
+        success: false,
+        message: 'Investment holding must use a broker or crypto wallet account.',
+      };
+    }
+
+    const trimmedName = payload.name.trim();
+    const trimmedSymbol = payload.symbol.trim().toUpperCase();
+
+    if (!trimmedName) {
+      return {
+        success: false,
+        message: 'Asset name is required.',
+      };
+    }
+
+    if (!trimmedSymbol) {
+      return {
+        success: false,
+        message: 'Asset symbol is required.',
+      };
+    }
+
+    if (!Number.isFinite(payload.quantity) || payload.quantity <= 0) {
+      return {
+        success: false,
+        message: 'Quantity must be greater than 0.',
+      };
+    }
+
+    if (
+      !Number.isFinite(payload.averagePrice) ||
+      !Number.isFinite(payload.currentPrice) ||
+      payload.averagePrice < 0 ||
+      payload.currentPrice < 0
+    ) {
+      return {
+        success: false,
+        message: 'Price cannot be negative.',
+      };
+    }
+
+    const hasOrderHistory = investmentOrders.some(
+      (order) => order.holdingId === payload.holdingId
+    );
+    const identityChanged =
+      targetHolding.accountId !== payload.accountId ||
+      targetHolding.symbol.trim().toUpperCase() !== trimmedSymbol ||
+      targetHolding.assetType !== payload.assetType ||
+      targetHolding.currency !== payload.currency;
+
+    if (hasOrderHistory && identityChanged) {
+      return {
+        success: false,
+        message:
+          'This holding has buy/sell history. Account, symbol, asset type, and currency are locked for data safety.',
+      };
+    }
+
+    const duplicateHolding = investmentHoldings.find(
+      (holding) =>
+        holding.id !== payload.holdingId &&
+        holding.accountId === account.id &&
+        holding.symbol.trim().toUpperCase() === trimmedSymbol &&
+        holding.assetType === payload.assetType &&
+        holding.currency === payload.currency
+    );
+
+    if (duplicateHolding) {
+      return {
+        success: false,
+        message: 'This asset already exists in the selected account.',
+      };
+    }
+
+    const now = new Date().toISOString();
+    const priceChanged =
+      Math.abs(targetHolding.currentPrice - payload.currentPrice) > 0.00000001 ||
+      targetHolding.currency !== payload.currency;
+
+    const updatedHolding: InvestmentHolding = {
+      ...targetHolding,
+      accountId: account.id,
+      name: trimmedName,
+      symbol: trimmedSymbol,
+      assetType: payload.assetType,
+      quantity: payload.quantity,
+      averagePrice: payload.averagePrice,
+      currentPrice: payload.currentPrice,
+      currency: payload.currency,
+      note: payload.note?.trim() || undefined,
+      updatedAt: now,
+    };
+
+    const metadataSyncedPriceHistory = investmentPriceHistory.map((point) =>
+      point.holdingId === payload.holdingId
+        ? {
+            ...point,
+            symbol: updatedHolding.symbol,
+            name: updatedHolding.name,
+            assetType: updatedHolding.assetType,
+            currency: updatedHolding.currency,
+          }
+        : point
+    );
+
+    const nextPriceHistory = priceChanged
+      ? upsertDailyInvestmentPriceHistoryPoint(
+          metadataSyncedPriceHistory,
+          createInvestmentPriceHistoryPoint({
+            holdingId: updatedHolding.id,
+            symbol: updatedHolding.symbol,
+            name: updatedHolding.name,
+            assetType: updatedHolding.assetType,
+            price: updatedHolding.currentPrice,
+            currency: updatedHolding.currency,
+            source: 'manual',
+            provider: 'Manual edit',
+            recordedAt: now,
+          })
+        )
+      : metadataSyncedPriceHistory;
+
+    setAndPersist({
+      investmentHoldings: investmentHoldings.map((holding) =>
+        holding.id === payload.holdingId ? updatedHolding : holding
+      ),
+      investmentPriceHistory: nextPriceHistory,
+    });
+
+    return {
+      success: true,
+      message: 'Investment holding updated successfully.',
+    };
+  },
+
   buyInvestmentAsset: (payload) => {
     const {
       accounts,
@@ -2720,7 +2899,7 @@ export const useFinanceStore = create<FinanceStore>((set, get) => {
   },
 
   deleteInvestmentHolding: (holdingId) => {
-    const { investmentHoldings, investmentPriceHistory } = get();
+    const { investmentHoldings, investmentOrders, investmentPriceHistory } = get();
 
     const holdingExists = investmentHoldings.some(
       (holding) => holding.id === holdingId
@@ -2730,6 +2909,18 @@ export const useFinanceStore = create<FinanceStore>((set, get) => {
       return {
         success: false,
         message: 'Investment holding not found.',
+      };
+    }
+
+    const hasOrderHistory = investmentOrders.some(
+      (order) => order.holdingId === holdingId
+    );
+
+    if (hasOrderHistory) {
+      return {
+        success: false,
+        message:
+          'This holding has buy/sell history, so it cannot be deleted safely. Keep it for records or sell the position down first.',
       };
     }
 
