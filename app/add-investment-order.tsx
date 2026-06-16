@@ -912,14 +912,14 @@ function createStyles(colors: ThemeColors) {
       lineHeight: 18,
     },
     sellQuickCard: {
-      marginTop: -8,
+      marginTop: 10,
       marginBottom: 18,
       backgroundColor: colors.surface,
       borderWidth: 1,
       borderColor: colors.border,
       borderRadius: 20,
-      padding: 13,
-      gap: 10,
+      padding: 14,
+      gap: 12,
     },
     sellQuickLabel: {
       fontWeight: '900',
@@ -927,6 +927,7 @@ function createStyles(colors: ThemeColors) {
     sellQuickRow: {
       flexDirection: 'row',
       gap: 9,
+      alignItems: 'stretch',
     },
     sellQuickChip: {
       flex: 1,

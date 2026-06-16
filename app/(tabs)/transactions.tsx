@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { AppText } from '../../src/components/ui/AppText';
 import { Screen } from '../../src/components/ui/Screen';
 import { StatCard } from '../../src/components/ui/StatCard';
@@ -13,7 +13,7 @@ import { formatCurrency } from '../../src/utils/currency';
 import { formatCompactCurrency } from '../../src/utils/formatCompactCurrency';
 import { convertCurrencyAmount, ExchangeRates, getTransactionHistoricalAmountInCurrency } from '../../src/utils/currencyConversion';
 
-type FilterValue = 'all' | 'income' | 'expense' | 'transfer' | 'saving';
+type FilterValue = 'all' | 'income' | 'expense' | 'transfer' | 'saving' | 'investment' | 'crypto';
 
 const filters: { label: string; value: FilterValue }[] = [
   { label: 'All', value: 'all' },
@@ -21,6 +21,8 @@ const filters: { label: string; value: FilterValue }[] = [
   { label: 'Expense', value: 'expense' },
   { label: 'Transfer', value: 'transfer' },
   { label: 'Saving', value: 'saving' },
+  { label: 'Investment', value: 'investment' },
+  { label: 'Crypto', value: 'crypto' },
 ];
 
 function isCurrentMonth(dateValue: string) {
@@ -108,11 +110,7 @@ function getTransactionPressTarget(transaction: Transaction) {
     return `/crypto-transaction-detail?transactionId=${transaction.id}`;
   }
 
-  if (canOpenEditTransaction(transaction)) {
-    return `/edit-transaction?transactionId=${transaction.id}`;
-  }
-
-  return null;
+  return `/transaction-detail?transactionId=${transaction.id}`;
 }
 
 function getCryptoTransactionMeta(transaction: Transaction) {
@@ -152,8 +150,21 @@ function getCryptoTransactionMeta(transaction: Transaction) {
 
 function matchFilter(transaction: Transaction, filter: FilterValue) {
   if (filter === 'all') return true;
+
+  if (filter === 'crypto') {
+    return isCryptoTransaction(transaction);
+  }
+
+  if (isCryptoTransaction(transaction)) {
+    return false;
+  }
+
   if (filter === 'saving') {
     return transaction.type === 'saving_deposit' || transaction.type === 'saving_withdrawal';
+  }
+
+  if (filter === 'investment') {
+    return transaction.type === 'investment_buy' || transaction.type === 'investment_sell';
   }
 
   return transaction.type === filter;
@@ -187,6 +198,61 @@ function getTransactionAmountInBaseCurrency(
     currencyBase,
     exchangeRates
   );
+}
+
+function getCashFlowDirection(transaction: Transaction) {
+  if (
+    transaction.type === 'income' ||
+    transaction.type === 'saving_withdrawal' ||
+    transaction.type === 'investment_sell'
+  ) {
+    return 'in';
+  }
+
+  if (
+    transaction.type === 'expense' ||
+    transaction.type === 'saving_deposit' ||
+    transaction.type === 'investment_buy'
+  ) {
+    return 'out';
+  }
+
+  return 'neutral';
+}
+
+function summarizeTransactionList(
+  items: Transaction[],
+  currencyBase: Currency,
+  exchangeRates: ExchangeRates
+) {
+  return items.reduce(
+    (summary, transaction) => {
+      const direction = getCashFlowDirection(transaction);
+      const amount = getTransactionAmountInBaseCurrency(transaction, currencyBase, exchangeRates);
+
+      if (direction === 'in') {
+        summary.income += amount;
+      }
+
+      if (direction === 'out') {
+        summary.expense += amount;
+      }
+
+      summary.net = summary.income - summary.expense;
+
+      return summary;
+    },
+    {
+      income: 0,
+      expense: 0,
+      net: 0,
+      count: items.length,
+    }
+  );
+}
+
+function getFilterLabel(filter: FilterValue) {
+  return filters.find((item) => item.value === filter)?.label || 'All';
 }
 
 export default function TransactionsScreen() {
@@ -273,6 +339,13 @@ export default function TransactionsScreen() {
     }, {});
   }, [filteredTransactions]);
 
+  const filteredSummary = useMemo(() => {
+    return summarizeTransactionList(filteredTransactions, defaultCurrency, exchangeRates);
+  }, [filteredTransactions, defaultCurrency, exchangeRates]);
+
+  const activeFilterLabel = getFilterLabel(selectedFilter);
+  const trimmedSearchQuery = searchQuery.trim();
+
   return (
     <Screen>
       <View style={styles.header}>
@@ -333,7 +406,12 @@ export default function TransactionsScreen() {
         />
       </View>
 
-      <View style={styles.filterRow}>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={styles.filterScroller}
+        contentContainerStyle={styles.filterRow}
+      >
         {filters.map((filter) => {
           const isActive = selectedFilter === filter.value;
 
@@ -349,42 +427,146 @@ export default function TransactionsScreen() {
             </Pressable>
           );
         })}
+      </ScrollView>
+
+      <View style={styles.filterSummaryCard}>
+        <View style={styles.filterSummaryHeader}>
+          <View style={styles.filterSummaryTitleBox}>
+            <AppText variant="caption" muted>
+              Showing
+            </AppText>
+
+            <AppText variant="subtitle" style={styles.filterSummaryTitle}>
+              {activeFilterLabel} Activity
+            </AppText>
+          </View>
+
+          <View style={styles.filterCountBadge}>
+            <AppText variant="caption" style={styles.filterCountText}>
+              {filteredSummary.count} items
+            </AppText>
+          </View>
+        </View>
+
+        <View style={styles.filterSummaryGrid}>
+          <View style={styles.filterSummaryMetric}>
+            <AppText variant="caption" muted>
+              Inflow
+            </AppText>
+
+            <AppText variant="body" style={[styles.filterSummaryValue, { color: colors.income }]} numberOfLines={1}>
+              {formatCompactCurrency(filteredSummary.income, defaultCurrency)}
+            </AppText>
+          </View>
+
+          <View style={styles.filterSummaryMetric}>
+            <AppText variant="caption" muted>
+              Outflow
+            </AppText>
+
+            <AppText variant="body" style={[styles.filterSummaryValue, { color: colors.expense }]} numberOfLines={1}>
+              {formatCompactCurrency(filteredSummary.expense, defaultCurrency)}
+            </AppText>
+          </View>
+
+          <View style={styles.filterSummaryMetric}>
+            <AppText variant="caption" muted>
+              Net
+            </AppText>
+
+            <AppText
+              variant="body"
+              style={[
+                styles.filterSummaryValue,
+                { color: filteredSummary.net >= 0 ? colors.income : colors.expense },
+              ]}
+              numberOfLines={1}
+            >
+              {formatCompactCurrency(filteredSummary.net, defaultCurrency)}
+            </AppText>
+          </View>
+        </View>
+
+        {trimmedSearchQuery ? (
+          <AppText variant="caption" muted style={styles.searchContextText} numberOfLines={1}>
+            Search result for “{trimmedSearchQuery}”
+          </AppText>
+        ) : null}
       </View>
 
       <View style={styles.sectionHeader}>
-        <AppText variant="subtitle">Activity</AppText>
+        <View>
+          <AppText variant="subtitle">Grouped Activity</AppText>
+          <AppText variant="caption" muted style={styles.sectionSubtitle}>
+            Sorted by transaction date
+          </AppText>
+        </View>
+
         <AppText variant="caption" muted>{filteredTransactions.length} items</AppText>
       </View>
 
       <View style={styles.list}>
         {filteredTransactions.length === 0 ? (
           <View style={styles.emptyCard}>
-            <AppText variant="subtitle">No transactions found</AppText>
+            <View style={styles.emptyIcon}>
+              <Ionicons name="file-tray-outline" size={24} color={colors.textMuted} />
+            </View>
+
+            <AppText variant="subtitle">No {activeFilterLabel.toLowerCase()} transactions found</AppText>
             <AppText variant="body" muted style={styles.emptyDescription}>
-              Add a transaction or change your filter.
+              Try another filter, clear the search, or add a new transaction.
             </AppText>
           </View>
         ) : null}
 
-        {Object.entries(groupedTransactions).map(([dateKey, items]) => (
-          <View key={dateKey} style={styles.group}>
-            <AppText variant="caption" muted style={styles.groupDate}>
-              {getDateLabel(dateKey)}
-            </AppText>
+        {Object.entries(groupedTransactions).map(([dateKey, items]) => {
+          const daySummary = summarizeTransactionList(items, defaultCurrency, exchangeRates);
 
-            <View style={styles.groupList}>
-              {items.map((transaction) => (
-                <TransactionRow
-                  key={transaction.id}
-                  transaction={transaction}
-                  colors={colors}
-                  currencyBase={defaultCurrency}
-                  exchangeRates={exchangeRates}
-                />
-              ))}
+          return (
+            <View key={dateKey} style={styles.groupCard}>
+              <View style={styles.groupHeader}>
+                <View>
+                  <AppText variant="caption" muted style={styles.groupDateLabel}>
+                    Date
+                  </AppText>
+
+                  <AppText variant="body" style={styles.groupDate}>
+                    {getDateLabel(dateKey)}
+                  </AppText>
+                </View>
+
+                <View style={styles.groupSummaryBox}>
+                  <AppText
+                    variant="caption"
+                    style={[
+                      styles.groupSummaryValue,
+                      { color: daySummary.net >= 0 ? colors.income : colors.expense },
+                    ]}
+                    numberOfLines={1}
+                  >
+                    {formatCompactCurrency(daySummary.net, defaultCurrency)}
+                  </AppText>
+
+                  <AppText variant="caption" muted style={styles.groupSummaryCount}>
+                    {items.length} items
+                  </AppText>
+                </View>
+              </View>
+
+              <View style={styles.groupList}>
+                {items.map((transaction) => (
+                  <TransactionRow
+                    key={transaction.id}
+                    transaction={transaction}
+                    colors={colors}
+                    currencyBase={defaultCurrency}
+                    exchangeRates={exchangeRates}
+                  />
+                ))}
+              </View>
             </View>
-          </View>
-        ))}
+          );
+        })}
       </View>
     </Screen>
   );
@@ -587,19 +769,22 @@ function createStyles(colors: ThemeColors) {
       fontWeight: '700',
       outlineStyle: 'none' as any,
     },
-    filterRow: {
+    filterScroller: {
       marginTop: 14,
-      flexDirection: 'row',
-      flexWrap: 'wrap',
+    },
+    filterRow: {
       gap: 8,
+      paddingRight: 20,
     },
     filterPill: {
+      minHeight: 38,
       backgroundColor: colors.surface,
       borderWidth: 1,
       borderColor: colors.border,
       borderRadius: 999,
-      paddingHorizontal: 12,
+      paddingHorizontal: 13,
       paddingVertical: 8,
+      justifyContent: 'center',
     },
     filterPillActive: {
       backgroundColor: colors.primary,
@@ -612,6 +797,63 @@ function createStyles(colors: ThemeColors) {
     filterTextActive: {
       color: colors.black,
     },
+    filterSummaryCard: {
+      marginTop: 16,
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 24,
+      padding: 16,
+      gap: 14,
+    },
+    filterSummaryHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'flex-start',
+      gap: 12,
+    },
+    filterSummaryTitleBox: {
+      flex: 1,
+      minWidth: 0,
+    },
+    filterSummaryTitle: {
+      marginTop: 3,
+    },
+    filterCountBadge: {
+      minHeight: 32,
+      borderRadius: 999,
+      backgroundColor: colors.surfaceSoft,
+      borderWidth: 1,
+      borderColor: colors.border,
+      paddingHorizontal: 11,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    filterCountText: {
+      color: colors.text,
+      fontWeight: '900',
+    },
+    filterSummaryGrid: {
+      flexDirection: 'row',
+      gap: 10,
+    },
+    filterSummaryMetric: {
+      flex: 1,
+      minWidth: 0,
+      backgroundColor: colors.surfaceSoft,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 17,
+      padding: 11,
+      gap: 4,
+    },
+    filterSummaryValue: {
+      fontWeight: '900',
+      fontSize: 13,
+    },
+    searchContextText: {
+      lineHeight: 18,
+    },
     sectionHeader: {
       marginTop: 28,
       marginBottom: 14,
@@ -620,14 +862,45 @@ function createStyles(colors: ThemeColors) {
       alignItems: 'flex-end',
       gap: 12,
     },
+    sectionSubtitle: {
+      marginTop: 3,
+    },
     list: {
       gap: 18,
     },
-    group: {
-      gap: 10,
+    groupCard: {
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 24,
+      padding: 12,
+      gap: 12,
+    },
+    groupHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      gap: 12,
+      paddingHorizontal: 2,
+    },
+    groupDateLabel: {
+      fontSize: 10,
+      fontWeight: '800',
     },
     groupDate: {
+      marginTop: 3,
+      color: colors.text,
       fontWeight: '900',
+    },
+    groupSummaryBox: {
+      alignItems: 'flex-end',
+      maxWidth: 120,
+    },
+    groupSummaryValue: {
+      fontWeight: '900',
+    },
+    groupSummaryCount: {
+      marginTop: 3,
     },
     groupList: {
       gap: 10,
@@ -637,11 +910,24 @@ function createStyles(colors: ThemeColors) {
       borderWidth: 1,
       borderColor: colors.border,
       borderRadius: 22,
-      padding: 18,
+      padding: 20,
+      alignItems: 'center',
+    },
+    emptyIcon: {
+      width: 48,
+      height: 48,
+      borderRadius: 18,
+      backgroundColor: colors.surfaceSoft,
+      borderWidth: 1,
+      borderColor: colors.border,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginBottom: 12,
     },
     emptyDescription: {
       marginTop: 8,
       lineHeight: 22,
+      textAlign: 'center',
     },
     transactionRow: {
       backgroundColor: colors.surface,

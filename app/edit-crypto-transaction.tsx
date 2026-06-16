@@ -3,6 +3,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { Alert, Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { AppText } from '../src/components/ui/AppText';
+import { NumericAmountInput } from '../src/components/ui/NumericAmountInput';
 import { Screen } from '../src/components/ui/Screen';
 import { ThemeColors } from '../src/constants/colors';
 import { useThemeColors } from '../src/hooks/useThemeColors';
@@ -330,32 +331,17 @@ export default function EditCryptoTransactionScreen() {
               />
             </View>
 
-            <View style={styles.field}>
-              <AppText variant="caption" muted style={styles.label}>
-                Quantity
-              </AppText>
-
-              <View style={styles.quantityInputBox}>
-                <TextInput
-                  value={quantity}
-                  onChangeText={setQuantity}
-                  keyboardType="decimal-pad"
-                  placeholder="0.00"
-                  placeholderTextColor={colors.textMuted}
-                  style={styles.quantityInput}
-                />
-
-                <View style={styles.quantitySymbolBadge}>
-                  <AppText variant="caption" style={styles.quantitySymbolText}>
-                    {getCryptoSymbol(transaction)}
-                  </AppText>
-                </View>
-              </View>
-
-              <AppText variant="caption" muted style={styles.quantityHint}>
-                Rate is locked. Amount will be recalculated using the stored transaction rate.
-              </AppText>
-            </View>
+            <NumericAmountInput
+              label={`Quantity (${getCryptoSymbol(transaction)})`}
+              value={quantity}
+              onChangeText={setQuantity}
+              placeholder="0.00"
+              icon="keypad-outline"
+              allowDecimal
+              previewLabel="Quantity preview"
+              quickValues={['0.0001', '0.001', '0.01', '0.1', '1']}
+              helperText="Rate is locked. Amount will be recalculated using the stored transaction rate."
+            />
 
             <View style={styles.calendarCard}>
               <View style={styles.calendarHeader}>
@@ -580,42 +566,6 @@ function createStyles(colors: ThemeColors) {
       minHeight: 92,
       paddingTop: 13,
       textAlignVertical: 'top',
-    },
-    quantityInputBox: {
-      minHeight: 52,
-      borderRadius: 18,
-      backgroundColor: colors.surfaceSoft,
-      borderWidth: 1,
-      borderColor: colors.border,
-      paddingHorizontal: 13,
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 10,
-    },
-    quantityInput: {
-      flex: 1,
-      color: colors.text,
-      fontWeight: '900',
-      fontSize: 17,
-      paddingVertical: 10,
-    },
-    quantitySymbolBadge: {
-      minHeight: 32,
-      borderRadius: 999,
-      backgroundColor: colors.surface,
-      borderWidth: 1,
-      borderColor: colors.border,
-      paddingHorizontal: 11,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    quantitySymbolText: {
-      color: colors.text,
-      fontWeight: '900',
-    },
-    quantityHint: {
-      marginTop: 2,
-      lineHeight: 17,
     },
     categoryList: {
       gap: 9,
