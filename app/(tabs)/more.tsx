@@ -40,6 +40,12 @@ const mainMenus: MenuItem[] = [
     route: '/investments',
   },
   {
+    title: 'Journal',
+    description: 'Trading journal, account tracking, and MT4/MT5 integration roadmap.',
+    icon: 'book-outline',
+    route: '/journal',
+  },
+  {
     title: 'Backup & Restore',
     description: 'Export and import local finance data as JSON.',
     icon: 'shield-checkmark-outline',
@@ -56,9 +62,9 @@ const mainMenus: MenuItem[] = [
 const upcomingMenus: MenuItem[] = [
   {
     title: 'Trading Pool',
-    description: 'Weekly profit allocation for trading income.',
+    description: 'Future profit allocation module after Trading Journal is stable.',
     icon: 'pie-chart-outline',
-    badge: 'Soon',
+    badge: 'Later',
   },
   {
     title: 'Cloud Sync',
@@ -95,7 +101,7 @@ export default function MoreScreen() {
           <AppText variant="subtitle">Control Center</AppText>
 
           <AppText variant="body" muted style={styles.heroDescription}>
-            Manage supporting modules, app preferences, backup tools, and upcoming finance tools.
+            Manage supporting modules, app preferences, backup tools, trading journal, and upcoming finance tools.
           </AppText>
         </View>
       </View>
