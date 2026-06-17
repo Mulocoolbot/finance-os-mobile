@@ -23,6 +23,92 @@ import {
   NetWorthSnapshot,
 } from '../types/finance';
 
+export type TradingPlatform = 'mt4' | 'mt5';
+
+export type TradingAccountType =
+  | 'cent'
+  | 'standard'
+  | 'ecn'
+  | 'demo'
+  | 'raw'
+  | 'unknown';
+
+export type TradingAccountSyncMode = 'manual' | 'statement_import' | 'auto_sync';
+
+export type TradingAccount = {
+  id: string;
+  name: string;
+  broker: string;
+  server: string;
+  accountNumber: string;
+  linkedBrokerWalletAccountId: string | null;
+  platform: TradingPlatform;
+  accountType: TradingAccountType;
+  leverage: number;
+  currency: Currency;
+  balance: number;
+  equity: number;
+  credit: number;
+  margin: number;
+  freeMargin: number;
+  syncMode: TradingAccountSyncMode;
+  lastSyncedAt: string | null;
+  note?: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt?: string;
+};
+
+type AddTradingAccountPayload = {
+  name: string;
+  broker: string;
+  server: string;
+  accountNumber: string;
+  linkedBrokerWalletAccountId?: string | null;
+  platform: TradingPlatform;
+  accountType: TradingAccountType;
+  leverage: number;
+  currency: Currency;
+  balance: number;
+  equity: number;
+  credit?: number;
+  margin?: number;
+  freeMargin?: number;
+  note?: string;
+};
+
+type UpdateTradingAccountPayload = AddTradingAccountPayload & {
+  tradingAccountId: string;
+};
+
+export type TradingCashEventType = 'deposit' | 'withdrawal';
+
+export type TradingCashEvent = {
+  id: string;
+  tradingAccountId: string;
+  linkedBrokerWalletAccountId: string;
+  eventType: TradingCashEventType;
+  amount: number;
+  currency: Currency;
+  brokerWalletAmount: number;
+  brokerWalletCurrency: Currency;
+  tradingAccountRawAmount: number;
+  tradingAccountRealAmount: number;
+  tradingAccountCurrency: Currency;
+  date: string;
+  note?: string;
+  createdAt: string;
+};
+
+type AddTradingCashEventPayload = {
+  tradingAccountId: string;
+  eventType: TradingCashEventType;
+  amount: number;
+  currency?: Currency;
+  date?: string;
+  note?: string;
+};
+
 type AddAccountPayload = {
   name: string;
   type: AccountType;
@@ -261,6 +347,8 @@ type FinanceStore = {
   investmentOrders: InvestmentOrder[];
   investmentPriceHistory: InvestmentPriceHistoryPoint[];
   netWorthSnapshots: NetWorthSnapshot[];
+  tradingAccounts: TradingAccount[];
+  tradingCashEvents: TradingCashEvent[];
 
   hasHydratedFinance: boolean;
   hydrateFinanceData: () => Promise<void>;
@@ -277,6 +365,11 @@ type FinanceStore = {
   lockExistingTransactionsWithCurrentRate: () => ActionResult;
 
   addAccount: (payload: AddAccountPayload) => ActionResult;
+  addTradingAccount: (payload: AddTradingAccountPayload) => ActionResult;
+  updateTradingAccount: (payload: UpdateTradingAccountPayload) => ActionResult;
+  deleteTradingAccount: (tradingAccountId: string) => ActionResult;
+  addTradingCashEvent: (payload: AddTradingCashEventPayload) => ActionResult;
+
   updateAccount: (payload: UpdateAccountPayload) => ActionResult;
   deleteAccount: (accountId: string) => ActionResult;
   permanentlyDeleteAccount: (accountId: string) => ActionResult;
@@ -307,6 +400,7 @@ type FinanceStore = {
   deleteTransaction: (transactionId: string) => ActionResult;
   updateTransaction: (payload: UpdateTransactionPayload) => ActionResult;
   transfer: (payload: TransferPayload) => ActionResult;
+  transferBalance: (payload: TransferPayload) => ActionResult;
   savingDeposit: (payload: TransferPayload) => ActionResult;
   savingWithdrawal: (payload: TransferPayload) => ActionResult;
 
@@ -757,6 +851,8 @@ type PersistedFinanceState = {
   investmentOrders: InvestmentOrder[];
   investmentPriceHistory: InvestmentPriceHistoryPoint[];
   netWorthSnapshots: NetWorthSnapshot[];
+  tradingAccounts: TradingAccount[];
+  tradingCashEvents: TradingCashEvent[];
 };
 
 function getInitialFinanceState(): PersistedFinanceState {
@@ -784,6 +880,8 @@ function getInitialFinanceState(): PersistedFinanceState {
     investmentOrders: [],
     investmentPriceHistory: [],
     netWorthSnapshots: [],
+    tradingAccounts: [],
+    tradingCashEvents: [],
   };
 }
 
@@ -814,6 +912,8 @@ function getPersistableFinanceState(
     investmentOrders: state.investmentOrders,
     investmentPriceHistory: state.investmentPriceHistory,
     netWorthSnapshots: state.netWorthSnapshots,
+    tradingAccounts: state.tradingAccounts,
+    tradingCashEvents: state.tradingCashEvents,
   };
 }
 
@@ -859,7 +959,9 @@ function normalizePersistedFinanceState(
     Array.isArray(value.categories) ||
     Array.isArray(value.investmentHoldings) ||
     Array.isArray(value.investmentOrders) ||
-    Array.isArray(value.netWorthSnapshots);
+    Array.isArray(value.netWorthSnapshots) ||
+    Array.isArray(value.tradingAccounts) ||
+    Array.isArray(value.tradingCashEvents);
 
   if (!hasAnyKnownFinanceData) {
     return null;
@@ -945,6 +1047,12 @@ function normalizePersistedFinanceState(
     ),
     netWorthSnapshots: Array.isArray(value.netWorthSnapshots)
       ? (value.netWorthSnapshots as NetWorthSnapshot[])
+      : [],
+    tradingAccounts: Array.isArray(value.tradingAccounts)
+      ? (value.tradingAccounts as TradingAccount[])
+      : [],
+    tradingCashEvents: Array.isArray(value.tradingCashEvents)
+      ? (value.tradingCashEvents as TradingCashEvent[])
       : [],
   };
 }
@@ -1369,6 +1477,193 @@ function canEditTransactionDirectly(transaction: Transaction) {
   return transaction.type === 'income' || transaction.type === 'expense';
 }
 
+
+function createTradingAccount(payload: AddTradingAccountPayload): TradingAccount {
+  const now = new Date().toISOString();
+
+  return {
+    id: `trading-account-${Date.now()}`,
+    name: payload.name.trim(),
+    broker: payload.broker.trim(),
+    server: payload.server.trim(),
+    accountNumber: payload.accountNumber.trim(),
+    linkedBrokerWalletAccountId: payload.linkedBrokerWalletAccountId || null,
+    platform: payload.platform,
+    accountType: payload.accountType,
+    leverage: payload.leverage,
+    currency: payload.currency,
+    balance: payload.balance,
+    equity: payload.equity,
+    credit: payload.credit || 0,
+    margin: payload.margin || 0,
+    freeMargin: payload.freeMargin || payload.equity,
+    syncMode: 'manual',
+    lastSyncedAt: null,
+    note: payload.note?.trim() || undefined,
+    isActive: true,
+    createdAt: now,
+    updatedAt: now,
+  };
+}
+
+function validateTradingAccountPayload(payload: AddTradingAccountPayload): string | null {
+  if (!payload.name.trim()) {
+    return 'Trading account name is required.';
+  }
+
+  if (!payload.broker.trim()) {
+    return 'Broker name is required.';
+  }
+
+  if (!payload.server.trim()) {
+    return 'Server is required.';
+  }
+
+  if (!payload.accountNumber.trim()) {
+    return 'Account number is required.';
+  }
+
+  if (!Number.isFinite(payload.leverage) || payload.leverage <= 0) {
+    return 'Leverage must be greater than 0.';
+  }
+  if (payload.accountType === 'cent' && payload.currency !== 'USD') {
+    return 'Cent account only supports USD currency.';
+  }
+
+
+  if (!Number.isFinite(payload.balance) || payload.balance < 0) {
+    return 'Balance must be 0 or greater.';
+  }
+
+  if (!Number.isFinite(payload.equity) || payload.equity < 0) {
+    return 'Equity must be 0 or greater.';
+  }
+
+  return null;
+}
+
+
+type TransferEndpointKind = 'finance' | 'trading';
+
+type TransferEndpoint = {
+  id: string;
+  rawId: string;
+  kind: TransferEndpointKind;
+  name: string;
+  currency: Currency;
+  balance: number;
+};
+
+function getTradingAccountTransferId(tradingAccountId: string) {
+  return `trading:${tradingAccountId}`;
+}
+
+function resolveTransferEndpoint(
+  endpointId: string,
+  accounts: Account[],
+  tradingAccounts: TradingAccount[],
+  defaultCurrency: Currency
+): TransferEndpoint | null {
+  const normalizedId = endpointId.startsWith('finance:')
+    ? endpointId.replace('finance:', '')
+    : endpointId;
+
+  const financeAccount = accounts.find((account) => account.id === normalizedId);
+
+  if (financeAccount) {
+    return {
+      id: financeAccount.id,
+      rawId: financeAccount.id,
+      kind: 'finance',
+      name: financeAccount.name,
+      currency: financeAccount.currency || defaultCurrency,
+      balance: financeAccount.balance,
+    };
+  }
+
+  const tradingAccountId = endpointId.startsWith('trading:')
+    ? endpointId.replace('trading:', '')
+    : endpointId;
+
+  const tradingAccount = tradingAccounts.find((account) => account.id === tradingAccountId);
+
+  if (tradingAccount) {
+    return {
+      id: getTradingAccountTransferId(tradingAccount.id),
+      rawId: tradingAccount.id,
+      kind: 'trading',
+      name: tradingAccount.name,
+      currency: tradingAccount.currency || defaultCurrency,
+      balance: tradingAccount.balance,
+    };
+  }
+
+  return null;
+}
+
+function adjustTradingAccountBalance(
+  tradingAccount: TradingAccount,
+  amountDelta: number
+): TradingAccount {
+  return {
+    ...tradingAccount,
+    balance: tradingAccount.balance + amountDelta,
+    equity: tradingAccount.equity + amountDelta,
+    freeMargin: tradingAccount.freeMargin + amountDelta,
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+
+function getTradingAccountRealAmount(account: TradingAccount, amount: number) {
+  if (account.accountType === 'cent') {
+    return amount / 100;
+  }
+
+  return amount;
+}
+
+function getTradingAccountDisplayCurrency(account: TradingAccount): Currency {
+  if (account.accountType === 'cent') {
+    return 'USD';
+  }
+
+  return account.currency;
+}
+
+
+function getTradingAccountRawAmountFromReal(
+  account: TradingAccount,
+  realAmount: number
+) {
+  if (account.accountType === 'cent') {
+    return realAmount * 100;
+  }
+
+  return realAmount;
+}
+
+function getTradingAccountRealBalance(account: TradingAccount) {
+  if (account.accountType === 'cent') {
+    return account.balance / 100;
+  }
+
+  return account.balance;
+}
+
+function adjustTradingAccountByRawAmount(
+  tradingAccount: TradingAccount,
+  rawDelta: number
+): TradingAccount {
+  return {
+    ...tradingAccount,
+    balance: tradingAccount.balance + rawDelta,
+    equity: tradingAccount.equity + rawDelta,
+    freeMargin: tradingAccount.freeMargin + rawDelta,
+    updatedAt: new Date().toISOString(),
+  };
+}
+
 export const useFinanceStore = create<FinanceStore>((set, get) => {
   function setAndPersist(partial: Partial<PersistedFinanceState>) {
     set(partial);
@@ -1400,6 +1695,8 @@ export const useFinanceStore = create<FinanceStore>((set, get) => {
   investmentOrders: [],
   investmentPriceHistory: [],
   netWorthSnapshots: [],
+  tradingAccounts: [],
+  tradingCashEvents: [],
 
   hasHydratedFinance: false,
 
@@ -1746,6 +2043,320 @@ export const useFinanceStore = create<FinanceStore>((set, get) => {
     return {
       success: true,
       message: `${lockedCount} existing transaction(s) locked with the current exchange rate.`,
+    };
+  },
+
+
+  addTradingAccount: (payload) => {
+    const validationMessage = validateTradingAccountPayload(payload);
+
+    if (validationMessage) {
+      return {
+        success: false,
+        message: validationMessage,
+      };
+    }
+
+    const tradingAccounts = get().tradingAccounts;
+    const duplicateAccount = tradingAccounts.find(
+      (account) =>
+        account.accountNumber.trim() === payload.accountNumber.trim() &&
+        account.broker.trim().toLowerCase() === payload.broker.trim().toLowerCase()
+    );
+
+    if (duplicateAccount) {
+      return {
+        success: false,
+        message: 'This broker account number already exists.',
+      };
+    }
+
+    const nextTradingAccount = createTradingAccount(payload);
+
+    setAndPersist({
+      tradingAccounts: [nextTradingAccount, ...tradingAccounts],
+    });
+
+    return {
+      success: true,
+      message: `${nextTradingAccount.name} added to Trading Journal.`,
+    };
+  },
+
+  updateTradingAccount: (payload) => {
+    const validationMessage = validateTradingAccountPayload(payload);
+
+    if (validationMessage) {
+      return {
+        success: false,
+        message: validationMessage,
+      };
+    }
+
+    const tradingAccounts = get().tradingAccounts;
+    const targetTradingAccount = tradingAccounts.find(
+      (account) => account.id === payload.tradingAccountId
+    );
+
+    if (!targetTradingAccount) {
+      return {
+        success: false,
+        message: 'Trading account not found.',
+      };
+    }
+
+    const nextTradingAccount: TradingAccount = {
+      ...targetTradingAccount,
+      name: payload.name.trim(),
+      broker: payload.broker.trim(),
+      server: payload.server.trim(),
+      accountNumber: payload.accountNumber.trim(),
+      linkedBrokerWalletAccountId: payload.linkedBrokerWalletAccountId || null,
+      platform: payload.platform,
+      accountType: payload.accountType,
+      leverage: payload.leverage,
+      currency: payload.currency,
+      balance: payload.balance,
+      equity: payload.equity,
+      credit: payload.credit || 0,
+      margin: payload.margin || 0,
+      freeMargin: payload.freeMargin || payload.equity,
+      note: payload.note?.trim() || undefined,
+      updatedAt: new Date().toISOString(),
+    };
+
+    setAndPersist({
+      tradingAccounts: tradingAccounts.map((account) =>
+        account.id === payload.tradingAccountId ? nextTradingAccount : account
+      ),
+    });
+
+    return {
+      success: true,
+      message: `${nextTradingAccount.name} updated.`,
+    };
+  },
+
+  deleteTradingAccount: (tradingAccountId) => {
+    const tradingAccounts = get().tradingAccounts;
+    const targetTradingAccount = tradingAccounts.find(
+      (account) => account.id === tradingAccountId
+    );
+
+    if (!targetTradingAccount) {
+      return {
+        success: false,
+        message: 'Trading account not found.',
+      };
+    }
+
+    setAndPersist({
+      tradingAccounts: tradingAccounts.filter((account) => account.id !== tradingAccountId),
+    });
+
+    return {
+      success: true,
+      message: `${targetTradingAccount.name} removed from Trading Journal.`,
+    };
+  },
+
+
+  addTradingCashEvent: (payload) => {
+    const {
+      accounts,
+      tradingAccounts,
+      tradingCashEvents,
+      transactions,
+      defaultCurrency,
+      exchangeRates,
+    } = get();
+
+    if (payload.amount <= 0) {
+      return {
+        success: false,
+        message: 'Amount must be greater than 0.',
+      };
+    }
+
+    const tradingAccount = tradingAccounts.find(
+      (account) => account.id === payload.tradingAccountId
+    );
+
+    if (!tradingAccount) {
+      return {
+        success: false,
+        message: 'Trading account not found.',
+      };
+    }
+
+    if (!tradingAccount.linkedBrokerWalletAccountId) {
+      return {
+        success: false,
+        message: 'This trading account is not linked to a Broker Wallet.',
+      };
+    }
+
+    const brokerWallet = accounts.find(
+      (account) => account.id === tradingAccount.linkedBrokerWalletAccountId
+    );
+
+    if (!brokerWallet) {
+      return {
+        success: false,
+        message: 'Linked Broker Wallet not found.',
+      };
+    }
+
+    const eventCurrency = resolveTransactionCurrency(
+      tradingAccount.accountType === 'cent' ? 'USD' : payload.currency,
+      tradingAccount.accountType === 'cent' ? 'USD' : tradingAccount.currency
+    );
+
+    if (tradingAccount.accountType === 'cent' && eventCurrency !== 'USD') {
+      return {
+        success: false,
+        message: 'Cent trading account deposit/withdrawal only supports USD.',
+      };
+    }
+
+    const exchangeRateSnapshot = createExchangeRateSnapshot(exchangeRates);
+
+    const brokerWalletAmount = convertAmountBetweenCurrencies(
+      payload.amount,
+      eventCurrency,
+      brokerWallet.currency || defaultCurrency,
+      exchangeRateSnapshot
+    );
+
+    const tradingRealAmount = convertAmountBetweenCurrencies(
+      payload.amount,
+      eventCurrency,
+      tradingAccount.currency,
+      exchangeRateSnapshot
+    );
+
+    const tradingRawAmount = getTradingAccountRawAmountFromReal(
+      tradingAccount,
+      tradingRealAmount
+    );
+
+    if (payload.eventType === 'deposit' && brokerWallet.balance < brokerWalletAmount) {
+      return {
+        success: false,
+        message: 'Insufficient Broker Wallet balance.',
+      };
+    }
+
+    if (
+      payload.eventType === 'withdrawal' &&
+      getTradingAccountRealBalance(tradingAccount) < tradingRealAmount
+    ) {
+      return {
+        success: false,
+        message: 'Insufficient Trading Account balance.',
+      };
+    }
+
+    const now = new Date().toISOString();
+    const directionMultiplier = payload.eventType === 'deposit' ? 1 : -1;
+
+    const nextTradingAccount = adjustTradingAccountByRawAmount(
+      tradingAccount,
+      tradingRawAmount * directionMultiplier
+    );
+
+    const nextBrokerWalletBalance =
+      payload.eventType === 'deposit'
+        ? brokerWallet.balance - brokerWalletAmount
+        : brokerWallet.balance + brokerWalletAmount;
+
+    const eventTitle =
+      payload.eventType === 'deposit'
+        ? 'Trading Deposit'
+        : 'Trading Withdrawal';
+
+    const newTradingCashEvent: TradingCashEvent = {
+      id: createId('trading-cash'),
+      tradingAccountId: tradingAccount.id,
+      linkedBrokerWalletAccountId: brokerWallet.id,
+      eventType: payload.eventType,
+      amount: payload.amount,
+      currency: eventCurrency,
+      brokerWalletAmount,
+      brokerWalletCurrency: brokerWallet.currency || defaultCurrency,
+      tradingAccountRawAmount: tradingRawAmount,
+      tradingAccountRealAmount: tradingRealAmount,
+      tradingAccountCurrency: tradingAccount.currency,
+      date: payload.date || getTodayISO(),
+      note: payload.note?.trim() || undefined,
+      createdAt: now,
+    };
+
+    const historicalSnapshot = buildHistoricalTransactionSnapshot(
+      payload.amount,
+      eventCurrency,
+      defaultCurrency,
+      brokerWallet.currency || defaultCurrency,
+      exchangeRates
+    );
+
+    const eventNoteParts = [
+      `Trading account: ${tradingAccount.name}`,
+      `Broker wallet: ${brokerWallet.name}`,
+      tradingAccount.accountType === 'cent'
+        ? `Cent raw movement: ${tradingRawAmount.toLocaleString('en-US', {
+            maximumFractionDigits: 2,
+          })} cents`
+        : undefined,
+      payload.note?.trim() ? `Note: ${payload.note.trim()}` : undefined,
+    ].filter(Boolean);
+
+    const newTransaction: Transaction = {
+      id: createId('trx'),
+      type: 'transfer',
+      title: eventTitle,
+      amount: payload.amount,
+      currency: eventCurrency,
+      ...historicalSnapshot,
+      fromAccountId:
+        payload.eventType === 'deposit'
+          ? brokerWallet.id
+          : `trading:${tradingAccount.id}`,
+      toAccountId:
+        payload.eventType === 'deposit'
+          ? `trading:${tradingAccount.id}`
+          : brokerWallet.id,
+      accountName:
+        payload.eventType === 'deposit'
+          ? `${brokerWallet.name} → ${tradingAccount.name}`
+          : `${tradingAccount.name} → ${brokerWallet.name}`,
+      categoryName: eventTitle,
+      date: payload.date || getTodayISO(),
+      note: eventNoteParts.join('\n'),
+    };
+
+    setAndPersist({
+      accounts: accounts.map((account) =>
+        account.id === brokerWallet.id
+          ? {
+              ...account,
+              balance: nextBrokerWalletBalance,
+            }
+          : account
+      ),
+      tradingAccounts: tradingAccounts.map((account) =>
+        account.id === tradingAccount.id ? nextTradingAccount : account
+      ),
+      tradingCashEvents: [newTradingCashEvent, ...tradingCashEvents],
+      transactions: [newTransaction, ...transactions],
+    });
+
+    return {
+      success: true,
+      message:
+        payload.eventType === 'deposit'
+          ? 'Trading deposit recorded successfully.'
+          : 'Trading withdrawal recorded successfully.',
     };
   },
 
@@ -4445,6 +5056,150 @@ export const useFinanceStore = create<FinanceStore>((set, get) => {
     return {
       success: true,
       message: 'Transaction updated successfully.',
+    };
+  },
+
+
+  transferBalance: (payload) => {
+    const { accounts, tradingAccounts, transactions, defaultCurrency, exchangeRates } = get();
+
+    if (payload.amount <= 0) {
+      return {
+        success: false,
+        message: 'Amount must be greater than 0.',
+      };
+    }
+
+    if (payload.fromAccountId === payload.toAccountId) {
+      return {
+        success: false,
+        message: 'Source and destination account cannot be the same.',
+      };
+    }
+
+    const fromEndpoint = resolveTransferEndpoint(
+      payload.fromAccountId,
+      accounts,
+      tradingAccounts,
+      defaultCurrency
+    );
+
+    const toEndpoint = resolveTransferEndpoint(
+      payload.toAccountId,
+      accounts,
+      tradingAccounts,
+      defaultCurrency
+    );
+
+    if (!fromEndpoint || !toEndpoint) {
+      return {
+        success: false,
+        message: 'Source or destination account not found.',
+      };
+    }
+    const fromTradingAccount = tradingAccounts.find(
+      (account) => fromEndpoint.kind === 'trading' && account.id === fromEndpoint.rawId
+    );
+    const toTradingAccount = tradingAccounts.find(
+      (account) => toEndpoint.kind === 'trading' && account.id === toEndpoint.rawId
+    );
+
+    if (fromTradingAccount?.accountType === 'cent' || toTradingAccount?.accountType === 'cent') {
+      return {
+        success: false,
+        message: 'Cent trading account transfer will be handled by Trading Deposit/Withdrawal sync phase.',
+      };
+    }
+
+
+    const transactionCurrency = resolveTransactionCurrency(
+      payload.currency,
+      fromEndpoint.currency || defaultCurrency
+    );
+
+    const historicalSnapshot = buildHistoricalTransactionSnapshot(
+      payload.amount,
+      transactionCurrency,
+      defaultCurrency,
+      fromEndpoint.currency || defaultCurrency,
+      exchangeRates
+    );
+
+    const sourceAmount = historicalSnapshot.accountAmountAtTransaction;
+
+    const destinationAmount = convertAmountBetweenCurrencies(
+      payload.amount,
+      transactionCurrency,
+      toEndpoint.currency || defaultCurrency,
+      historicalSnapshot.exchangeRateSnapshot
+    );
+
+    if (fromEndpoint.balance < sourceAmount) {
+      return {
+        success: false,
+        message: 'Insufficient source account balance.',
+      };
+    }
+
+    const nextAccounts = accounts.map((account) => {
+      if (fromEndpoint.kind === 'finance' && account.id === fromEndpoint.rawId) {
+        return {
+          ...account,
+          balance: account.balance - sourceAmount,
+        };
+      }
+
+      if (toEndpoint.kind === 'finance' && account.id === toEndpoint.rawId) {
+        return {
+          ...account,
+          balance: account.balance + destinationAmount,
+        };
+      }
+
+      return account;
+    });
+
+    const nextTradingAccounts = tradingAccounts.map((account) => {
+      if (fromEndpoint.kind === 'trading' && account.id === fromEndpoint.rawId) {
+        return adjustTradingAccountBalance(account, -sourceAmount);
+      }
+
+      if (toEndpoint.kind === 'trading' && account.id === toEndpoint.rawId) {
+        return adjustTradingAccountBalance(account, destinationAmount);
+      }
+
+      return account;
+    });
+
+    const transferNoteParts = [
+      payload.note,
+      `Balance transfer: ${fromEndpoint.kind} → ${toEndpoint.kind}`,
+    ].filter(Boolean);
+
+    const newTransaction: Transaction = {
+      id: createId('trx'),
+      type: 'transfer',
+      title: payload.title || 'Balance Transfer',
+      amount: payload.amount,
+      currency: transactionCurrency,
+      ...historicalSnapshot,
+      fromAccountId: fromEndpoint.id,
+      toAccountId: toEndpoint.id,
+      accountName: `${fromEndpoint.name} → ${toEndpoint.name}`,
+      categoryName: 'Transfer',
+      date: payload.date || getTodayISO(),
+      note: transferNoteParts.join('\n'),
+    };
+
+    setAndPersist({
+      accounts: nextAccounts,
+      tradingAccounts: nextTradingAccounts,
+      transactions: [newTransaction, ...transactions],
+    });
+
+    return {
+      success: true,
+      message: 'Balance transfer completed successfully.',
     };
   },
 

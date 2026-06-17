@@ -1,70 +1,108 @@
 import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { AppText } from '../src/components/ui/AppText';
 import { Screen } from '../src/components/ui/Screen';
 import { ThemeColors } from '../src/constants/colors';
 import { useThemeColors } from '../src/hooks/useThemeColors';
+import { TradingAccount, useFinanceStore } from '../src/stores/useFinanceStore';
+import { formatCurrency } from '../src/utils/currency';
+import {
+  convertCurrencyAmount,
+  ExchangeRates,
+} from '../src/utils/currencyConversion';
 
-type RoadmapItem = {
-  title: string;
-  description: string;
-  icon: keyof typeof Ionicons.glyphMap;
-  status: 'Ready' | 'Next' | 'Later';
-};
+function getAccountTypeLabel(accountType: TradingAccount['accountType']) {
+  if (accountType === 'cent') return 'Cent';
+  if (accountType === 'standard') return 'Standard';
+  if (accountType === 'ecn') return 'ECN';
+  if (accountType === 'demo') return 'Demo';
+  if (accountType === 'raw') return 'Raw';
 
-const roadmapItems: RoadmapItem[] = [
-  {
-    title: 'Manual Trading Account',
-    description: 'Add broker, server, account type, leverage, balance, equity, and currency manually.',
-    icon: 'person-circle-outline',
-    status: 'Next',
-  },
-  {
-    title: 'Manual Trade Journal',
-    description: 'Record pair, direction, lot, entry, exit, SL/TP, result, emotion, mistake, and lesson.',
-    icon: 'create-outline',
-    status: 'Next',
-  },
-  {
-    title: 'MT4/MT5 Statement Import',
-    description: 'Import statement/history file to read closed trades, profit, swap, commission, and account summary.',
-    icon: 'document-text-outline',
-    status: 'Later',
-  },
-  {
-    title: 'MT4/MT5 Auto Sync',
-    description: 'Connector layer for balance, equity, account type, leverage, server, broker, and trade history.',
-    icon: 'sync-outline',
-    status: 'Later',
-  },
-];
+  return 'Unknown';
+}
 
-const metricPreview = [
-  {
-    label: 'Balance',
-    value: 'Waiting',
-    icon: 'wallet-outline' as const,
-  },
-  {
-    label: 'Equity',
-    value: 'Waiting',
-    icon: 'pulse-outline' as const,
-  },
-  {
-    label: 'Winrate',
-    value: '0%',
-    icon: 'analytics-outline' as const,
-  },
-  {
-    label: 'Trades',
-    value: '0',
-    icon: 'list-outline' as const,
-  },
-];
+function getPlatformLabel(platform: TradingAccount['platform']) {
+  return platform === 'mt5' ? 'MT5' : 'MT4';
+}
+
+function getTradingAccountRealAmount(account: TradingAccount, amount: number) {
+  if (account.accountType === 'cent') {
+    return amount / 100;
+  }
+
+  return amount;
+}
+
+function getLinkedWalletName(
+  linkedBrokerWalletAccountId: string | null | undefined,
+  accounts: { id: string; name: string }[]
+) {
+  if (!linkedBrokerWalletAccountId) {
+    return 'No linked broker wallet';
+  }
+
+  return accounts.find((account) => account.id === linkedBrokerWalletAccountId)?.name || 'Linked wallet not found';
+}
+
+
+function convertTradingAccountAmount(
+  amount: number,
+  fromCurrency: TradingAccount['currency'],
+  toCurrency: TradingAccount['currency'],
+  exchangeRates: ExchangeRates
+) {
+  return convertCurrencyAmount(amount, fromCurrency, toCurrency, exchangeRates);
+}
+
+function getJournalSummary(
+  tradingAccounts: TradingAccount[],
+  baseCurrency: TradingAccount['currency'],
+  exchangeRates: ExchangeRates
+) {
+  const totalBalance = tradingAccounts.reduce((total, account) => {
+    return (
+      total +
+      convertTradingAccountAmount(
+        getTradingAccountRealAmount(account, account.balance),
+        account.currency,
+        baseCurrency,
+        exchangeRates
+      )
+    );
+  }, 0);
+
+  const totalEquity = tradingAccounts.reduce((total, account) => {
+    return (
+      total +
+      convertTradingAccountAmount(
+        getTradingAccountRealAmount(account, account.equity),
+        account.currency,
+        baseCurrency,
+        exchangeRates
+      )
+    );
+  }, 0);
+
+  const floatingPnL = totalEquity - totalBalance;
+
+  return {
+    totalBalance,
+    totalEquity,
+    floatingPnL,
+    accountCount: tradingAccounts.length,
+  };
+}
 
 export default function JournalScreen() {
   const colors = useThemeColors();
   const styles = createStyles(colors);
+  const tradingAccounts = useFinanceStore((state) => state.tradingAccounts);
+  const accounts = useFinanceStore((state) => state.accounts);
+  const defaultCurrency = useFinanceStore((state) => state.defaultCurrency);
+  const exchangeRates = useFinanceStore((state) => state.exchangeRates);
+
+  const summary = getJournalSummary(tradingAccounts, defaultCurrency, exchangeRates);
 
   return (
     <Screen>
@@ -78,6 +116,10 @@ export default function JournalScreen() {
             Journal
           </AppText>
         </View>
+
+        <Pressable onPress={() => router.push('/add-trading-account' as any)} style={styles.addButton}>
+          <Ionicons name="add-outline" size={20} color={colors.black} />
+        </Pressable>
       </View>
 
       <View style={styles.heroCard}>
@@ -89,162 +131,287 @@ export default function JournalScreen() {
           <AppText variant="subtitle">Trading Journal</AppText>
 
           <AppText variant="body" muted style={styles.heroDescription}>
-            A dedicated module for trading accounts, trade history, performance analytics, and MT4/MT5 integration.
+            Track trading accounts, broker details, balance, equity, and trading performance before MT4/MT5 sync is added.
           </AppText>
-        </View>
-      </View>
-
-      <View style={styles.statusCard}>
-        <View style={styles.statusHeader}>
-          <View style={styles.statusIcon}>
-            <Ionicons name="construct-outline" size={20} color={colors.black} />
-          </View>
-
-          <View style={styles.statusTextBox}>
-            <AppText variant="body" style={styles.statusTitle}>
-              Module shell is ready
-            </AppText>
-
-            <AppText variant="caption" muted style={styles.statusDescription}>
-              This page is prepared as the base for Trading Journal. MT4/MT5 connector will be added in later phases.
-            </AppText>
-          </View>
         </View>
       </View>
 
       <View style={styles.sectionHeader}>
         <AppText variant="subtitle">Account Snapshot</AppText>
         <AppText variant="caption" muted>
-          Future sync target
+          Converted to {defaultCurrency}
         </AppText>
       </View>
 
       <View style={styles.metricGrid}>
-        {metricPreview.map((metric) => (
-          <View key={metric.label} style={styles.metricCard}>
-            <View style={styles.metricIcon}>
-              <Ionicons name={metric.icon} size={18} color={colors.textMuted} />
-            </View>
+        <MetricCard
+          label="Balance"
+          value={formatCurrency(summary.totalBalance, defaultCurrency)}
+          icon="wallet-outline"
+          colors={colors}
+        />
 
-            <AppText variant="caption" muted>
-              {metric.label}
-            </AppText>
+        <MetricCard
+          label="Equity"
+          value={formatCurrency(summary.totalEquity, defaultCurrency)}
+          icon="pulse-outline"
+          colors={colors}
+        />
 
-            <AppText variant="body" style={styles.metricValue}>
-              {metric.value}
-            </AppText>
-          </View>
-        ))}
+        <MetricCard
+          label="Floating P/L"
+          value={formatCurrency(summary.floatingPnL, defaultCurrency)}
+          icon="analytics-outline"
+          colors={colors}
+          tone={summary.floatingPnL >= 0 ? colors.income : colors.expense}
+        />
+
+        <MetricCard
+          label="Accounts"
+          value={`${summary.accountCount}`}
+          icon="desktop-outline"
+          colors={colors}
+        />
       </View>
 
       <View style={styles.sectionHeader}>
-        <AppText variant="subtitle">MT4/MT5 Connector Plan</AppText>
+        <AppText variant="subtitle">Trading Accounts</AppText>
         <AppText variant="caption" muted>
-          Safe architecture
+          {tradingAccounts.length} account{tradingAccounts.length === 1 ? '' : 's'}
         </AppText>
       </View>
 
-      <View style={styles.connectorCard}>
-        <View style={styles.connectorRow}>
-          <View style={styles.connectorIcon}>
-            <Ionicons name="phone-portrait-outline" size={20} color={colors.text} />
+      {tradingAccounts.length === 0 ? (
+        <View style={styles.emptyCard}>
+          <View style={styles.emptyIcon}>
+            <Ionicons name="server-outline" size={24} color={colors.textMuted} />
           </View>
 
-          <View style={styles.connectorTextBox}>
-            <AppText variant="body" style={styles.connectorTitle}>
-              Mobile app
-            </AppText>
+          <AppText variant="subtitle">No trading account yet</AppText>
 
-            <AppText variant="caption" muted style={styles.connectorDescription}>
-              Reads journal data, account summary, and trade history.
+          <AppText variant="body" muted style={styles.emptyDescription}>
+            Add your MT4/MT5 account manually first. Later, this module can read account info from import or auto-sync.
+          </AppText>
+
+          <Pressable onPress={() => router.push('/add-trading-account' as any)} style={styles.primaryButton}>
+            <Ionicons name="add-outline" size={18} color={colors.black} />
+
+            <AppText variant="body" style={styles.primaryButtonText}>
+              Add Trading Account
             </AppText>
-          </View>
+          </Pressable>
         </View>
-
-        <View style={styles.connectorArrow}>
-          <Ionicons name="arrow-down-outline" size={16} color={colors.textMuted} />
+      ) : (
+        <View style={styles.accountList}>
+          {tradingAccounts.map((account) => (
+            <TradingAccountCard key={account.id} account={account} accounts={accounts} colors={colors} />
+          ))}
         </View>
-
-        <View style={styles.connectorRow}>
-          <View style={styles.connectorIcon}>
-            <Ionicons name="cloud-outline" size={20} color={colors.text} />
-          </View>
-
-          <View style={styles.connectorTextBox}>
-            <AppText variant="body" style={styles.connectorTitle}>
-              Connector layer
-            </AppText>
-
-            <AppText variant="caption" muted style={styles.connectorDescription}>
-              Backend/API bridge for MT4/MT5 sync, statement import, and account metadata parsing.
-            </AppText>
-          </View>
-        </View>
-
-        <View style={styles.connectorArrow}>
-          <Ionicons name="arrow-down-outline" size={16} color={colors.textMuted} />
-        </View>
-
-        <View style={styles.connectorRow}>
-          <View style={styles.connectorIcon}>
-            <Ionicons name="desktop-outline" size={20} color={colors.text} />
-          </View>
-
-          <View style={styles.connectorTextBox}>
-            <AppText variant="body" style={styles.connectorTitle}>
-              MT4 / MT5 account
-            </AppText>
-
-            <AppText variant="caption" muted style={styles.connectorDescription}>
-              Broker, server, leverage, balance, equity, account type, and trade history.
-            </AppText>
-          </View>
-        </View>
-      </View>
+      )}
 
       <View style={styles.sectionHeader}>
-        <AppText variant="subtitle">Build Roadmap</AppText>
+        <AppText variant="subtitle">MT4/MT5 Integration Roadmap</AppText>
         <AppText variant="caption" muted>
-          Phase by phase
+          Later phase
         </AppText>
       </View>
 
-      <View style={styles.roadmapList}>
-        {roadmapItems.map((item) => (
-          <View key={item.title} style={styles.roadmapCard}>
-            <View style={styles.roadmapIcon}>
-              <Ionicons name={item.icon} size={20} color={colors.text} />
-            </View>
+      <View style={styles.roadmapCard}>
+        <View style={styles.roadmapRow}>
+          <Ionicons name="checkmark-circle-outline" size={20} color={colors.income} />
 
-            <View style={styles.roadmapTextBox}>
-              <View style={styles.roadmapTitleRow}>
-                <AppText variant="body" style={styles.roadmapTitle}>
-                  {item.title}
-                </AppText>
+          <AppText variant="body" style={styles.roadmapText}>
+            Phase 7B: manual trading account setup
+          </AppText>
+        </View>
 
-                <View style={styles.statusBadge}>
-                  <AppText variant="caption" style={styles.statusBadgeText}>
-                    {item.status}
-                  </AppText>
-                </View>
-              </View>
+        <View style={styles.roadmapRow}>
+          <Ionicons name="document-text-outline" size={20} color={colors.textMuted} />
 
-              <AppText variant="caption" muted style={styles.roadmapDescription}>
-                {item.description}
-              </AppText>
-            </View>
-          </View>
-        ))}
+          <AppText variant="body" muted style={styles.roadmapText}>
+            Next: manual trade history and journal notes
+          </AppText>
+        </View>
+
+        <View style={styles.roadmapRow}>
+          <Ionicons name="sync-outline" size={20} color={colors.textMuted} />
+
+          <AppText variant="body" muted style={styles.roadmapText}>
+            Later: MT4/MT5 statement import or connector sync
+          </AppText>
+        </View>
+      </View>
+    </Screen>
+  );
+}
+
+function MetricCard({
+  label,
+  value,
+  icon,
+  colors,
+  tone,
+}: {
+  label: string;
+  value: string;
+  icon: keyof typeof Ionicons.glyphMap;
+  colors: ThemeColors;
+  tone?: string;
+}) {
+  const styles = createStyles(colors);
+
+  return (
+    <View style={styles.metricCard}>
+      <View style={styles.metricIcon}>
+        <Ionicons name={icon} size={18} color={tone || colors.textMuted} />
       </View>
 
-      <Pressable disabled style={styles.disabledButton}>
-        <Ionicons name="lock-closed-outline" size={18} color={colors.textMuted} />
+      <AppText variant="caption" muted>
+        {label}
+      </AppText>
 
-        <AppText variant="body" muted style={styles.disabledButtonText}>
-          Trading account setup will be added in Phase 7B
+      <AppText variant="body" style={[styles.metricValue, tone ? { color: tone } : null]} numberOfLines={1}>
+        {value}
+      </AppText>
+    </View>
+  );
+}
+
+function TradingAccountCard({
+  account,
+  accounts,
+  colors,
+}: {
+  account: TradingAccount;
+  accounts: { id: string; name: string }[];
+  colors: ThemeColors;
+}) {
+  const styles = createStyles(colors);
+  const realBalance = getTradingAccountRealAmount(account, account.balance);
+  const realEquity = getTradingAccountRealAmount(account, account.equity);
+  const floatingPnL = realEquity - realBalance;
+
+  return (
+    <View style={styles.accountCard}>
+      <View style={styles.accountHeader}>
+        <View style={styles.accountIcon}>
+          <Ionicons name="desktop-outline" size={21} color={colors.text} />
+        </View>
+
+        <View style={styles.accountTitleBox}>
+          <AppText variant="body" style={styles.accountTitle} numberOfLines={1}>
+            {account.name}
+          </AppText>
+
+          <AppText variant="caption" muted numberOfLines={1}>
+            {account.broker} • {getPlatformLabel(account.platform)}
+          </AppText>
+        </View>
+
+        <View style={styles.accountTypeBadge}>
+          <AppText variant="caption" style={styles.accountTypeText}>
+            {getAccountTypeLabel(account.accountType)}
+          </AppText>
+        </View>
+      </View>
+
+      <View style={styles.accountMetaGrid}>
+        <InfoPill label="Server" value={account.server} colors={colors} />
+        <InfoPill label="Leverage" value={`1:${account.leverage}`} colors={colors} />
+        <InfoPill label={account.accountType === 'cent' ? 'Cent Balance' : 'Balance'} value={formatCurrency(account.balance, account.currency)} colors={colors} />
+        <InfoPill label="Real Balance" value={formatCurrency(realBalance, account.currency)} colors={colors} />
+        <InfoPill label="Equity" value={formatCurrency(account.equity, account.currency)} colors={colors} />
+        <InfoPill label="Linked Wallet" value={getLinkedWalletName(account.linkedBrokerWalletAccountId, accounts)} colors={colors} />
+      </View>
+
+      <View style={styles.accountFooter}>
+        <AppText variant="caption" muted numberOfLines={1}>
+          Account #{account.accountNumber}
+        </AppText>
+
+        <AppText
+          variant="caption"
+          style={[styles.pnlText, { color: floatingPnL >= 0 ? colors.income : colors.expense }]}
+          numberOfLines={1}
+        >
+          Floating {formatCurrency(floatingPnL, account.currency)}
+        </AppText>
+      </View>
+
+      <Pressable
+        onPress={() => router.push(`/trading-account-detail?tradingAccountId=${account.id}` as any)}
+        style={styles.openJournalButton}
+      >
+        <Ionicons name="analytics-outline" size={15} color={colors.black} />
+
+        <AppText variant="caption" style={styles.openJournalButtonText}>
+          Open Account Journal
         </AppText>
       </Pressable>
-    </Screen>
+
+      <Pressable
+        onPress={() => router.push(`/edit-trading-account?tradingAccountId=${account.id}` as any)}
+        style={styles.editTradingButton}
+      >
+        <Ionicons name="create-outline" size={15} color={colors.text} />
+
+        <AppText variant="caption" style={styles.editTradingButtonText}>
+          Edit Trading Account
+        </AppText>
+      </Pressable>
+
+      <View style={styles.cashActionRow}>
+        <Pressable
+          onPress={() =>
+            router.push(`/trading-cash-event?tradingAccountId=${account.id}&eventType=deposit` as any)
+          }
+          style={styles.cashActionButton}
+        >
+          <Ionicons name="arrow-down-outline" size={15} color={colors.black} />
+
+          <AppText variant="caption" style={styles.cashActionButtonText}>
+            Deposit
+          </AppText>
+        </Pressable>
+
+        <Pressable
+          onPress={() =>
+            router.push(`/trading-cash-event?tradingAccountId=${account.id}&eventType=withdrawal` as any)
+          }
+          style={styles.cashActionButtonMuted}
+        >
+          <Ionicons name="arrow-up-outline" size={15} color={colors.text} />
+
+          <AppText variant="caption" style={styles.cashActionButtonMutedText}>
+            Withdraw
+          </AppText>
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
+function InfoPill({
+  label,
+  value,
+  colors,
+}: {
+  label: string;
+  value: string;
+  colors: ThemeColors;
+}) {
+  const styles = createStyles(colors);
+
+  return (
+    <View style={styles.infoPill}>
+      <AppText variant="caption" muted numberOfLines={1}>
+        {label}
+      </AppText>
+
+      <AppText variant="caption" style={styles.infoPillValue} numberOfLines={1}>
+        {value}
+      </AppText>
+    </View>
   );
 }
 
@@ -252,9 +419,21 @@ function createStyles(colors: ThemeColors) {
   return StyleSheet.create({
     header: {
       marginBottom: 22,
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      gap: 14,
     },
     title: {
       marginTop: 4,
+    },
+    addButton: {
+      width: 44,
+      height: 44,
+      borderRadius: 16,
+      backgroundColor: colors.primary,
+      alignItems: 'center',
+      justifyContent: 'center',
     },
     heroCard: {
       backgroundColor: colors.surface,
@@ -283,38 +462,6 @@ function createStyles(colors: ThemeColors) {
     heroDescription: {
       marginTop: 7,
       lineHeight: 21,
-    },
-    statusCard: {
-      backgroundColor: colors.surface,
-      borderWidth: 1,
-      borderColor: colors.border,
-      borderRadius: 24,
-      padding: 15,
-      marginBottom: 20,
-    },
-    statusHeader: {
-      flexDirection: 'row',
-      gap: 12,
-    },
-    statusIcon: {
-      width: 42,
-      height: 42,
-      borderRadius: 16,
-      backgroundColor: colors.primary,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    statusTextBox: {
-      flex: 1,
-      minWidth: 0,
-    },
-    statusTitle: {
-      color: colors.text,
-      fontWeight: '900',
-    },
-    statusDescription: {
-      marginTop: 5,
-      lineHeight: 19,
     },
     sectionHeader: {
       marginTop: 10,
@@ -355,117 +502,209 @@ function createStyles(colors: ThemeColors) {
     metricValue: {
       color: colors.text,
       fontWeight: '900',
+      fontSize: 13,
     },
-    connectorCard: {
+    emptyCard: {
       backgroundColor: colors.surface,
       borderWidth: 1,
       borderColor: colors.border,
       borderRadius: 24,
-      padding: 15,
-      gap: 8,
+      padding: 20,
+      alignItems: 'center',
       marginBottom: 18,
     },
-    connectorRow: {
-      flexDirection: 'row',
-      gap: 12,
+    emptyIcon: {
+      width: 52,
+      height: 52,
+      borderRadius: 20,
+      backgroundColor: colors.surfaceSoft,
+      borderWidth: 1,
+      borderColor: colors.border,
       alignItems: 'center',
+      justifyContent: 'center',
+      marginBottom: 12,
     },
-    connectorIcon: {
-      width: 42,
-      height: 42,
-      borderRadius: 16,
+    emptyDescription: {
+      marginTop: 8,
+      lineHeight: 21,
+      textAlign: 'center',
+    },
+    primaryButton: {
+      marginTop: 16,
+      minHeight: 52,
+      borderRadius: 18,
+      backgroundColor: colors.primary,
+      alignItems: 'center',
+      justifyContent: 'center',
+      flexDirection: 'row',
+      gap: 8,
+      paddingHorizontal: 18,
+      alignSelf: 'stretch',
+    },
+    primaryButtonText: {
+      color: colors.black,
+      fontWeight: '900',
+    },
+    accountList: {
+      gap: 12,
+      marginBottom: 18,
+    },
+    accountCard: {
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 24,
+      padding: 14,
+      gap: 13,
+    },
+    accountHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 11,
+    },
+    accountIcon: {
+      width: 44,
+      height: 44,
+      borderRadius: 17,
       backgroundColor: colors.surfaceSoft,
       borderWidth: 1,
       borderColor: colors.border,
       alignItems: 'center',
       justifyContent: 'center',
     },
-    connectorTextBox: {
+    accountTitleBox: {
       flex: 1,
       minWidth: 0,
     },
-    connectorTitle: {
+    accountTitle: {
       color: colors.text,
       fontWeight: '900',
     },
-    connectorDescription: {
-      marginTop: 4,
-      lineHeight: 18,
+    accountTypeBadge: {
+      borderRadius: 999,
+      backgroundColor: colors.surfaceSoft,
+      borderWidth: 1,
+      borderColor: colors.border,
+      paddingHorizontal: 9,
+      paddingVertical: 5,
     },
-    connectorArrow: {
-      paddingLeft: 13,
+    accountTypeText: {
+      color: colors.text,
+      fontWeight: '900',
+      fontSize: 10,
     },
-    roadmapList: {
-      gap: 10,
-      marginBottom: 16,
+    accountMetaGrid: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 9,
+    },
+    infoPill: {
+      flexGrow: 1,
+      flexBasis: '47%',
+      minWidth: 130,
+      borderRadius: 16,
+      backgroundColor: colors.surfaceSoft,
+      borderWidth: 1,
+      borderColor: colors.border,
+      padding: 10,
+      gap: 3,
+    },
+    infoPillValue: {
+      color: colors.text,
+      fontWeight: '900',
+    },
+    accountFooter: {
+      borderTopWidth: 1,
+      borderTopColor: colors.border,
+      paddingTop: 11,
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      gap: 12,
+    },
+    pnlText: {
+      fontWeight: '900',
+      flexShrink: 0,
+    },
+    openJournalButton: {
+      minHeight: 42,
+      borderRadius: 16,
+      backgroundColor: colors.primary,
+      alignItems: 'center',
+      justifyContent: 'center',
+      flexDirection: 'row',
+      gap: 7,
+    },
+    openJournalButtonText: {
+      color: colors.black,
+      fontWeight: '900',
+    },    editTradingButton: {
+      minHeight: 38,
+      borderRadius: 15,
+      backgroundColor: colors.surfaceSoft,
+      borderWidth: 1,
+      borderColor: colors.border,
+      alignItems: 'center',
+      justifyContent: 'center',
+      flexDirection: 'row',
+      gap: 7,
+    },
+    editTradingButtonText: {
+      color: colors.text,
+      fontWeight: '900',
+    },
+    cashActionRow: {
+      flexDirection: 'row',
+      gap: 9,
+    },
+    cashActionButton: {
+      flex: 1,
+      minHeight: 40,
+      borderRadius: 15,
+      backgroundColor: colors.primary,
+      alignItems: 'center',
+      justifyContent: 'center',
+      flexDirection: 'row',
+      gap: 7,
+    },
+    cashActionButtonText: {
+      color: colors.black,
+      fontWeight: '900',
+    },
+    cashActionButtonMuted: {
+      flex: 1,
+      minHeight: 40,
+      borderRadius: 15,
+      backgroundColor: colors.surfaceSoft,
+      borderWidth: 1,
+      borderColor: colors.border,
+      alignItems: 'center',
+      justifyContent: 'center',
+      flexDirection: 'row',
+      gap: 7,
+    },
+    cashActionButtonMutedText: {
+      color: colors.text,
+      fontWeight: '900',
     },
     roadmapCard: {
       backgroundColor: colors.surface,
       borderWidth: 1,
       borderColor: colors.border,
-      borderRadius: 22,
-      padding: 14,
-      flexDirection: 'row',
+      borderRadius: 24,
+      padding: 15,
       gap: 12,
-    },
-    roadmapIcon: {
-      width: 42,
-      height: 42,
-      borderRadius: 16,
-      backgroundColor: colors.surfaceSoft,
-      borderWidth: 1,
-      borderColor: colors.border,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    roadmapTextBox: {
-      flex: 1,
-      minWidth: 0,
-    },
-    roadmapTitleRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      gap: 10,
-    },
-    roadmapTitle: {
-      flex: 1,
-      color: colors.text,
-      fontWeight: '900',
-    },
-    roadmapDescription: {
-      marginTop: 6,
-      lineHeight: 19,
-    },
-    statusBadge: {
-      borderRadius: 999,
-      backgroundColor: colors.surfaceSoft,
-      borderWidth: 1,
-      borderColor: colors.border,
-      paddingHorizontal: 8,
-      paddingVertical: 4,
-    },
-    statusBadgeText: {
-      color: colors.text,
-      fontWeight: '900',
-      fontSize: 10,
-    },
-    disabledButton: {
-      minHeight: 54,
-      borderRadius: 19,
-      backgroundColor: colors.surfaceSoft,
-      borderWidth: 1,
-      borderColor: colors.border,
-      alignItems: 'center',
-      justifyContent: 'center',
-      flexDirection: 'row',
-      gap: 8,
-      paddingHorizontal: 16,
       marginBottom: 8,
     },
-    disabledButtonText: {
+    roadmapRow: {
+      flexDirection: 'row',
+      gap: 10,
+      alignItems: 'flex-start',
+    },
+    roadmapText: {
+      flex: 1,
+      lineHeight: 20,
+      color: colors.text,
       fontWeight: '800',
-      textAlign: 'center',
     },
   });
 }
