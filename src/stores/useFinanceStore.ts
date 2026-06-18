@@ -109,6 +109,105 @@ type AddTradingCashEventPayload = {
   note?: string;
 };
 
+export type TradingPlan = {
+  id: string;
+  tradingAccountId: string;
+  dailyMaxLossPercent: number;
+  dailyMaxLossAmount: number;
+  dailyProfitTargetPercent: number;
+  dailyProfitTargetAmount: number;
+  maxTradesPerDay: number;
+  riskPerTradePercent: number;
+  minimumRewardRiskRatio: number;
+  allowedPairs: string[];
+  sessionStart: string;
+  sessionEnd: string;
+  ruleNotes: string;
+  mentalChecklist: string[];
+  createdAt: string;
+  updatedAt?: string;
+};
+
+type UpsertTradingPlanPayload = {
+  tradingAccountId: string;
+  dailyMaxLossPercent: number;
+  dailyMaxLossAmount: number;
+  dailyProfitTargetPercent: number;
+  dailyProfitTargetAmount: number;
+  maxTradesPerDay: number;
+  riskPerTradePercent: number;
+  minimumRewardRiskRatio: number;
+  allowedPairs: string[];
+  sessionStart: string;
+  sessionEnd: string;
+  ruleNotes: string;
+  mentalChecklist: string[];
+};
+
+export type TradingTradeDirection = 'buy' | 'sell';
+
+export type TradingTradeStatus = 'open' | 'closed';
+
+export type TradingTrade = {
+  id: string;
+  tradingAccountId: string;
+  status: TradingTradeStatus;
+  pair: string;
+  direction: TradingTradeDirection;
+  lotSize: number;
+  entryPrice: number;
+  exitPrice: number | null;
+  stopLoss: number | null;
+  takeProfit: number | null;
+  openDate: string;
+  closeDate: string | null;
+  grossProfitLoss: number;
+  commission: number;
+  swap: number;
+  netProfitLoss: number;
+  currency: Currency;
+  accountBalanceSnapshot: number;
+  planRiskPercentSnapshot: number;
+  planRiskLimitAmountSnapshot: number;
+  riskAmount: number;
+  rewardRiskRatio: number;
+  setupTag: string;
+  mistakeTags: string[];
+  emotionBefore: string;
+  emotionAfter: string;
+  note?: string;
+  createdAt: string;
+  updatedAt?: string;
+};
+
+type AddTradingTradePayload = {
+  tradingAccountId: string;
+  status: TradingTradeStatus;
+  pair: string;
+  direction: TradingTradeDirection;
+  lotSize: number;
+  entryPrice: number;
+  exitPrice?: number | null;
+  stopLoss?: number | null;
+  takeProfit?: number | null;
+  openDate?: string;
+  closeDate?: string | null;
+  grossProfitLoss?: number;
+  commission?: number;
+  swap?: number;
+  riskAmount?: number;
+  rewardRiskRatio?: number;
+  setupTag?: string;
+  mistakeTags?: string[];
+  emotionBefore?: string;
+  emotionAfter?: string;
+  note?: string;
+};
+
+type UpdateTradingTradePayload = AddTradingTradePayload & {
+  tradeId: string;
+};
+
 type AddAccountPayload = {
   name: string;
   type: AccountType;
@@ -349,6 +448,8 @@ type FinanceStore = {
   netWorthSnapshots: NetWorthSnapshot[];
   tradingAccounts: TradingAccount[];
   tradingCashEvents: TradingCashEvent[];
+  tradingPlans: TradingPlan[];
+  tradingTrades: TradingTrade[];
 
   hasHydratedFinance: boolean;
   hydrateFinanceData: () => Promise<void>;
@@ -369,6 +470,11 @@ type FinanceStore = {
   updateTradingAccount: (payload: UpdateTradingAccountPayload) => ActionResult;
   deleteTradingAccount: (tradingAccountId: string) => ActionResult;
   addTradingCashEvent: (payload: AddTradingCashEventPayload) => ActionResult;
+  upsertTradingPlan: (payload: UpsertTradingPlanPayload) => ActionResult;
+  deleteTradingPlan: (tradingAccountId: string) => ActionResult;
+  addTradingTrade: (payload: AddTradingTradePayload) => ActionResult;
+  updateTradingTrade: (payload: UpdateTradingTradePayload) => ActionResult;
+  deleteTradingTrade: (tradeId: string) => ActionResult;
 
   updateAccount: (payload: UpdateAccountPayload) => ActionResult;
   deleteAccount: (accountId: string) => ActionResult;
@@ -631,6 +737,35 @@ const initialTransactions: Transaction[] = [
   },
 ];
 
+function getTradingPlanForAccountSnapshot(
+  tradingPlans: TradingPlan[],
+  tradingAccountId: string
+) {
+  return tradingPlans.find((plan) => plan.tradingAccountId === tradingAccountId);
+}
+
+function getTradingAccountRealBalanceSnapshot(account: TradingAccount) {
+  if (account.accountType === 'cent') {
+    return (account.balance || 0) / 100;
+  }
+
+  return account.balance || 0;
+}
+
+function getTradingPlanRiskLimitSnapshot(
+  account: TradingAccount,
+  plan: TradingPlan | undefined
+) {
+  const realBalance = getTradingAccountRealBalanceSnapshot(account);
+  const riskPercent = plan?.riskPerTradePercent || 0;
+
+  return {
+    accountBalanceSnapshot: realBalance,
+    planRiskPercentSnapshot: riskPercent,
+    planRiskLimitAmountSnapshot: (realBalance * riskPercent) / 100,
+  };
+}
+
 function createId(prefix: string) {
   return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
@@ -853,6 +988,8 @@ type PersistedFinanceState = {
   netWorthSnapshots: NetWorthSnapshot[];
   tradingAccounts: TradingAccount[];
   tradingCashEvents: TradingCashEvent[];
+  tradingPlans: TradingPlan[];
+  tradingTrades: TradingTrade[];
 };
 
 function getInitialFinanceState(): PersistedFinanceState {
@@ -882,6 +1019,8 @@ function getInitialFinanceState(): PersistedFinanceState {
     netWorthSnapshots: [],
     tradingAccounts: [],
     tradingCashEvents: [],
+    tradingPlans: [],
+    tradingTrades: [],
   };
 }
 
@@ -914,6 +1053,8 @@ function getPersistableFinanceState(
     netWorthSnapshots: state.netWorthSnapshots,
     tradingAccounts: state.tradingAccounts,
     tradingCashEvents: state.tradingCashEvents,
+    tradingPlans: state.tradingPlans,
+    tradingTrades: state.tradingTrades,
   };
 }
 
@@ -961,7 +1102,9 @@ function normalizePersistedFinanceState(
     Array.isArray(value.investmentOrders) ||
     Array.isArray(value.netWorthSnapshots) ||
     Array.isArray(value.tradingAccounts) ||
-    Array.isArray(value.tradingCashEvents);
+    Array.isArray(value.tradingCashEvents) ||
+    Array.isArray(value.tradingPlans) ||
+    Array.isArray(value.tradingTrades);
 
   if (!hasAnyKnownFinanceData) {
     return null;
@@ -1054,6 +1197,17 @@ function normalizePersistedFinanceState(
     tradingCashEvents: Array.isArray(value.tradingCashEvents)
       ? (value.tradingCashEvents as TradingCashEvent[])
       : [],
+    tradingPlans: Array.isArray(value.tradingPlans)
+      ? (value.tradingPlans as TradingPlan[])
+      : [],
+    tradingTrades: Array.isArray(value.tradingTrades)
+      ? (value.tradingTrades as TradingTrade[]).map((trade) => ({
+          ...trade,
+          accountBalanceSnapshot: trade.accountBalanceSnapshot || 0,
+          planRiskPercentSnapshot: trade.planRiskPercentSnapshot || 0,
+          planRiskLimitAmountSnapshot: trade.planRiskLimitAmountSnapshot || 0,
+        }))
+      : [],
   };
 }
 
@@ -1079,6 +1233,22 @@ async function readNormalizedFinanceStateFromKey(storageKey: string) {
   } catch {
     return null;
   }
+}
+
+function scoreFinanceStateForRecovery(state: PersistedFinanceState) {
+  return (
+    state.tradingAccounts.length * 1000 +
+    state.tradingTrades.length * 900 +
+    state.tradingCashEvents.length * 800 +
+    state.tradingPlans.length * 700 +
+    state.investmentHoldings.length * 600 +
+    state.investmentOrders.length * 500 +
+    state.transactions.length * 50 +
+    state.accounts.length * 40 +
+    state.savingGoals.length * 30 +
+    state.budgets.length * 20 +
+    state.categories.length
+  );
 }
 
 function saveFinanceState(state: PersistedFinanceState) {
@@ -1697,6 +1867,8 @@ export const useFinanceStore = create<FinanceStore>((set, get) => {
   netWorthSnapshots: [],
   tradingAccounts: [],
   tradingCashEvents: [],
+  tradingPlans: [],
+  tradingTrades: [],
 
   hasHydratedFinance: false,
 
@@ -1708,6 +1880,12 @@ export const useFinanceStore = create<FinanceStore>((set, get) => {
         ...FINANCE_LEGACY_STORAGE_KEYS,
       ];
 
+      const candidates: Array<{
+        storageKey: string;
+        normalizedFinanceData: PersistedFinanceState;
+        score: number;
+      }> = [];
+
       for (const storageKey of storageKeysToTry) {
         const restoredFinanceData = await readNormalizedFinanceStateFromKey(storageKey);
 
@@ -1715,21 +1893,36 @@ export const useFinanceStore = create<FinanceStore>((set, get) => {
           continue;
         }
 
+        candidates.push({
+          storageKey,
+          normalizedFinanceData: restoredFinanceData.normalizedFinanceData,
+          score: scoreFinanceStateForRecovery(
+            restoredFinanceData.normalizedFinanceData
+          ),
+        });
+      }
+
+      const bestCandidate = candidates.sort((left, right) => right.score - left.score)[0];
+
+      if (bestCandidate) {
         set({
-          ...restoredFinanceData.normalizedFinanceData,
+          ...bestCandidate.normalizedFinanceData,
           hasHydratedFinance: true,
         });
 
-        if (storageKey !== FINANCE_STORAGE_KEY) {
-          await AsyncStorage.setItem(
-            FINANCE_STORAGE_KEY,
-            JSON.stringify(
-              getPersistableFinanceState(restoredFinanceData.normalizedFinanceData)
-            )
-          );
-        } else {
-          saveFinanceState(restoredFinanceData.normalizedFinanceData);
-        }
+        await AsyncStorage.setItem(
+          FINANCE_STORAGE_KEY,
+          JSON.stringify(
+            getPersistableFinanceState(bestCandidate.normalizedFinanceData)
+          )
+        );
+
+        await AsyncStorage.setItem(
+          FINANCE_BACKUP_STORAGE_KEY,
+          JSON.stringify(
+            getPersistableFinanceState(bestCandidate.normalizedFinanceData)
+          )
+        );
 
         return;
       }
@@ -2412,6 +2605,338 @@ export const useFinanceStore = create<FinanceStore>((set, get) => {
       message: 'Account created successfully.',
     };
   },
+
+  upsertTradingPlan: (payload) => {
+    const { tradingAccounts, tradingPlans } = get();
+
+    const tradingAccount = tradingAccounts.find(
+      (account) => account.id === payload.tradingAccountId
+    );
+
+    if (!tradingAccount) {
+      return {
+        success: false,
+        message: 'Trading account not found.',
+      };
+    }
+
+    if (payload.dailyMaxLossPercent < 0) {
+      return { success: false, message: 'Daily max loss percentage cannot be negative.' };
+    }
+
+    if (payload.dailyMaxLossAmount < 0) {
+      return { success: false, message: 'Daily max loss amount cannot be negative.' };
+    }
+
+    if (payload.dailyProfitTargetPercent < 0) {
+      return { success: false, message: 'Daily profit target percentage cannot be negative.' };
+    }
+
+    if (payload.dailyProfitTargetAmount < 0) {
+      return { success: false, message: 'Daily profit target cannot be negative.' };
+    }
+
+    if (!Number.isFinite(payload.maxTradesPerDay) || payload.maxTradesPerDay <= 0) {
+      return { success: false, message: 'Max trades per day must be greater than 0.' };
+    }
+
+    if (payload.riskPerTradePercent < 0) {
+      return { success: false, message: 'Risk per trade cannot be negative.' };
+    }
+
+    if (!Number.isFinite(payload.minimumRewardRiskRatio) || payload.minimumRewardRiskRatio <= 0) {
+      return { success: false, message: 'Minimum RR must be greater than 0.' };
+    }
+
+    const now = new Date().toISOString();
+    const existingPlan = tradingPlans.find(
+      (plan) => plan.tradingAccountId === payload.tradingAccountId
+    );
+
+    const nextPlan: TradingPlan = {
+      id: existingPlan?.id || createId('trading-plan'),
+      tradingAccountId: payload.tradingAccountId,
+      dailyMaxLossPercent: payload.dailyMaxLossPercent,
+      dailyMaxLossAmount: payload.dailyMaxLossAmount,
+      dailyProfitTargetPercent: payload.dailyProfitTargetPercent,
+      dailyProfitTargetAmount: payload.dailyProfitTargetAmount,
+      maxTradesPerDay: payload.maxTradesPerDay,
+      riskPerTradePercent: payload.riskPerTradePercent,
+      minimumRewardRiskRatio: payload.minimumRewardRiskRatio,
+      allowedPairs: payload.allowedPairs.map((pair) => pair.trim().toUpperCase()).filter(Boolean),
+      sessionStart: payload.sessionStart.trim(),
+      sessionEnd: payload.sessionEnd.trim(),
+      ruleNotes: payload.ruleNotes.trim(),
+      mentalChecklist: payload.mentalChecklist.map((item) => item.trim()).filter(Boolean),
+      createdAt: existingPlan?.createdAt || now,
+      updatedAt: now,
+    };
+
+    setAndPersist({
+      tradingPlans: existingPlan
+        ? tradingPlans.map((plan) => (plan.id === existingPlan.id ? nextPlan : plan))
+        : [nextPlan, ...tradingPlans],
+    });
+
+    return {
+      success: true,
+      message: existingPlan ? 'Trading plan updated successfully.' : 'Trading plan created successfully.',
+    };
+  },
+
+  deleteTradingPlan: (tradingAccountId) => {
+    const { tradingPlans } = get();
+    const existingPlan = tradingPlans.find((plan) => plan.tradingAccountId === tradingAccountId);
+
+    if (!existingPlan) {
+      return { success: false, message: 'Trading plan not found.' };
+    }
+
+    setAndPersist({
+      tradingPlans: tradingPlans.filter((plan) => plan.tradingAccountId !== tradingAccountId),
+    });
+
+    return { success: true, message: 'Trading plan deleted successfully.' };
+  },
+
+
+  addTradingTrade: (payload) => {
+    const { tradingAccounts, tradingTrades, tradingPlans } = get();
+
+    const tradingAccount = tradingAccounts.find(
+      (account) => account.id === payload.tradingAccountId
+    );
+
+    if (!tradingAccount) {
+      return { success: false, message: 'Trading account not found.' };
+    }
+
+    if (!payload.pair.trim()) {
+      return { success: false, message: 'Pair is required.' };
+    }
+
+    if (!Number.isFinite(payload.lotSize) || payload.lotSize <= 0) {
+      return { success: false, message: 'Lot size must be greater than 0.' };
+    }
+
+    if (!Number.isFinite(payload.entryPrice) || payload.entryPrice <= 0) {
+      return { success: false, message: 'Entry price must be greater than 0.' };
+    }
+
+    const now = new Date().toISOString();
+    const commission = payload.commission || 0;
+    const swap = payload.swap || 0;
+    const grossProfitLoss = payload.status === 'closed' ? payload.grossProfitLoss || 0 : 0;
+    const netProfitLoss =
+      payload.status === 'closed' ? grossProfitLoss - commission + swap : 0;
+    const planSnapshot = getTradingPlanForAccountSnapshot(
+      tradingPlans,
+      tradingAccount.id
+    );
+    const riskSnapshot = getTradingPlanRiskLimitSnapshot(
+      tradingAccount,
+      planSnapshot
+    );
+
+    const newTrade: TradingTrade = {
+      id: createId('trading-trade'),
+      tradingAccountId: tradingAccount.id,
+      status: payload.status,
+      pair: payload.pair.trim().toUpperCase(),
+      direction: payload.direction,
+      lotSize: payload.lotSize,
+      entryPrice: payload.entryPrice,
+      exitPrice: payload.status === 'closed' ? payload.exitPrice || null : null,
+      stopLoss: payload.stopLoss || null,
+      takeProfit: payload.takeProfit || null,
+      openDate: payload.openDate || getTodayISO(),
+      closeDate: payload.status === 'closed' ? payload.closeDate || getTodayISO() : null,
+      grossProfitLoss,
+      commission,
+      swap,
+      netProfitLoss,
+      currency: tradingAccount.currency,
+      accountBalanceSnapshot: riskSnapshot.accountBalanceSnapshot,
+      planRiskPercentSnapshot: riskSnapshot.planRiskPercentSnapshot,
+      planRiskLimitAmountSnapshot: riskSnapshot.planRiskLimitAmountSnapshot,
+      riskAmount: payload.riskAmount || 0,
+      rewardRiskRatio: payload.rewardRiskRatio || 0,
+      setupTag: payload.setupTag?.trim() || '',
+      mistakeTags: (payload.mistakeTags || [])
+        .map((tag) => tag.trim())
+        .filter(Boolean),
+      emotionBefore: payload.emotionBefore?.trim() || '',
+      emotionAfter: payload.emotionAfter?.trim() || '',
+      note: payload.note?.trim() || undefined,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    const rawDelta =
+      payload.status === 'closed'
+        ? getTradingAccountRawAmountFromReal(tradingAccount, netProfitLoss)
+        : 0;
+
+    setAndPersist({
+      tradingTrades: [newTrade, ...tradingTrades],
+      tradingAccounts:
+        payload.status === 'closed'
+          ? tradingAccounts.map((account) =>
+              account.id === tradingAccount.id
+                ? adjustTradingAccountByRawAmount(account, rawDelta)
+                : account
+            )
+          : tradingAccounts,
+    });
+
+    return {
+      success: true,
+      message:
+        payload.status === 'closed'
+          ? 'Closed trade recorded and balance updated.'
+          : 'Open trade recorded successfully.',
+    };
+  },
+
+  updateTradingTrade: (payload) => {
+    const { tradingAccounts, tradingTrades, tradingPlans } = get();
+
+    const existingTrade = tradingTrades.find((trade) => trade.id === payload.tradeId);
+
+    if (!existingTrade) {
+      return { success: false, message: 'Trade not found.' };
+    }
+
+    const tradingAccount = tradingAccounts.find(
+      (account) => account.id === payload.tradingAccountId
+    );
+
+    if (!tradingAccount) {
+      return { success: false, message: 'Trading account not found.' };
+    }
+
+    if (!payload.pair.trim()) {
+      return { success: false, message: 'Pair is required.' };
+    }
+
+    if (!Number.isFinite(payload.lotSize) || payload.lotSize <= 0) {
+      return { success: false, message: 'Lot size must be greater than 0.' };
+    }
+
+    if (!Number.isFinite(payload.entryPrice) || payload.entryPrice <= 0) {
+      return { success: false, message: 'Entry price must be greater than 0.' };
+    }
+
+    const now = new Date().toISOString();
+    const commission = payload.commission || 0;
+    const swap = payload.swap || 0;
+    const grossProfitLoss = payload.status === 'closed' ? payload.grossProfitLoss || 0 : 0;
+    const netProfitLoss =
+      payload.status === 'closed' ? grossProfitLoss - commission + swap : 0;
+    const nextPlanSnapshot = getTradingPlanForAccountSnapshot(
+      tradingPlans,
+      tradingAccount.id
+    );
+    const nextRiskSnapshot = getTradingPlanRiskLimitSnapshot(
+      tradingAccount,
+      nextPlanSnapshot
+    );
+
+    const nextTrade: TradingTrade = {
+      ...existingTrade,
+      tradingAccountId: tradingAccount.id,
+      status: payload.status,
+      pair: payload.pair.trim().toUpperCase(),
+      direction: payload.direction,
+      lotSize: payload.lotSize,
+      entryPrice: payload.entryPrice,
+      exitPrice: payload.status === 'closed' ? payload.exitPrice || null : null,
+      stopLoss: payload.stopLoss || null,
+      takeProfit: payload.takeProfit || null,
+      openDate: payload.openDate || existingTrade.openDate || getTodayISO(),
+      closeDate: payload.status === 'closed' ? payload.closeDate || getTodayISO() : null,
+      grossProfitLoss,
+      commission,
+      swap,
+      netProfitLoss,
+      currency: tradingAccount.currency,
+      accountBalanceSnapshot: nextRiskSnapshot.accountBalanceSnapshot,
+      planRiskPercentSnapshot: nextRiskSnapshot.planRiskPercentSnapshot,
+      planRiskLimitAmountSnapshot: nextRiskSnapshot.planRiskLimitAmountSnapshot,
+      riskAmount: payload.riskAmount || 0,
+      rewardRiskRatio: payload.rewardRiskRatio || 0,
+      setupTag: payload.setupTag?.trim() || '',
+      mistakeTags: (payload.mistakeTags || [])
+        .map((tag) => tag.trim())
+        .filter(Boolean),
+      emotionBefore: payload.emotionBefore?.trim() || '',
+      emotionAfter: payload.emotionAfter?.trim() || '',
+      note: payload.note?.trim() || undefined,
+      updatedAt: now,
+    };
+
+    const rollbackOldRaw =
+      existingTrade.status === 'closed'
+        ? getTradingAccountRawAmountFromReal(tradingAccount, -existingTrade.netProfitLoss)
+        : 0;
+    const applyNewRaw =
+      nextTrade.status === 'closed'
+        ? getTradingAccountRawAmountFromReal(tradingAccount, nextTrade.netProfitLoss)
+        : 0;
+    const rawDelta = rollbackOldRaw + applyNewRaw;
+
+    setAndPersist({
+      tradingTrades: tradingTrades.map((trade) =>
+        trade.id === existingTrade.id ? nextTrade : trade
+      ),
+      tradingAccounts:
+        rawDelta !== 0
+          ? tradingAccounts.map((account) =>
+              account.id === tradingAccount.id
+                ? adjustTradingAccountByRawAmount(account, rawDelta)
+                : account
+            )
+          : tradingAccounts,
+    });
+
+    return {
+      success: true,
+      message: 'Trade updated successfully.',
+    };
+  },
+
+  deleteTradingTrade: (tradeId) => {
+    const { tradingAccounts, tradingTrades } = get();
+    const targetTrade = tradingTrades.find((trade) => trade.id === tradeId);
+
+    if (!targetTrade) {
+      return { success: false, message: 'Trade not found.' };
+    }
+
+    const tradingAccount = tradingAccounts.find(
+      (account) => account.id === targetTrade.tradingAccountId
+    );
+
+    const rawRollback =
+      targetTrade.status === 'closed' && tradingAccount
+        ? getTradingAccountRawAmountFromReal(tradingAccount, -targetTrade.netProfitLoss)
+        : 0;
+
+    setAndPersist({
+      tradingTrades: tradingTrades.filter((trade) => trade.id !== tradeId),
+      tradingAccounts:
+        targetTrade.status === 'closed' && tradingAccount
+          ? tradingAccounts.map((account) =>
+              account.id === tradingAccount.id
+                ? adjustTradingAccountByRawAmount(account, rawRollback)
+                : account
+            )
+          : tradingAccounts,
+    });
+
+    return { success: true, message: 'Trade deleted successfully.' };
+  },
+
 
   updateAccount: (payload) => {
     const { accounts, transactions, defaultCurrency, exchangeRates } = get();

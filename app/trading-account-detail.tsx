@@ -9,6 +9,8 @@ import { useThemeColors } from '../src/hooks/useThemeColors';
 import {
   TradingAccount,
   TradingCashEvent,
+  TradingPlan,
+  TradingTrade,
   useFinanceStore,
 } from '../src/stores/useFinanceStore';
 import { Account, Currency } from '../src/types/finance';
@@ -34,6 +36,22 @@ type SummaryReadiness = {
   net: number;
   eventCount: number;
   reason: string;
+};
+
+type TradeReport = {
+  periodKey: string;
+  label: string;
+  totalTrades: number;
+  closedTrades: number;
+  openTrades: number;
+  wins: number;
+  losses: number;
+  netProfitLoss: number;
+  winRate: number;
+  averageRR: number;
+  violationCount: number;
+  warningCount: number;
+  checks: string[];
 };
 
 const periodFilters: { label: string; value: PeriodFilter }[] = [
@@ -374,12 +392,313 @@ function getLatestValue(points: GrowthPoint[]) {
   return points[points.length - 1].value;
 }
 
+function getMinutesFromTime(value: string | undefined) {
+  if (!value) {
+    return null;
+  }
+
+  const [hourText, minuteText] = value.split(':');
+  const hour = Number(hourText);
+  const minute = Number(minuteText);
+
+  if (!Number.isFinite(hour) || !Number.isFinite(minute)) {
+    return null;
+  }
+
+  return hour * 60 + minute;
+}
+
+function getMinutesFromDateValue(value: string | null | undefined) {
+  if (!value || !value.includes('T')) {
+    return null;
+  }
+
+  const date = getDate(value);
+
+  return date.getHours() * 60 + date.getMinutes();
+}
+
+function isWithinTradingSession(
+  tradeDateValue: string | null | undefined,
+  sessionStart: string,
+  sessionEnd: string
+) {
+  const tradeMinutes = getMinutesFromDateValue(tradeDateValue);
+  const startMinutes = getMinutesFromTime(sessionStart);
+  const endMinutes = getMinutesFromTime(sessionEnd);
+
+  if (
+    tradeMinutes === null ||
+    startMinutes === null ||
+    endMinutes === null
+  ) {
+    return null;
+  }
+
+  if (startMinutes <= endMinutes) {
+    return tradeMinutes >= startMinutes && tradeMinutes <= endMinutes;
+  }
+
+  return tradeMinutes >= startMinutes || tradeMinutes <= endMinutes;
+}
+
+function getTradeDayKey(trade: TradingTrade) {
+  return getPeriodKey(getTradeDate(trade), 'daily');
+}
+
+function buildTradeReports(
+  trades: TradingTrade[],
+  plan: TradingPlan | undefined,
+  account: TradingAccount,
+  period: PeriodFilter,
+  currentRealBalance: number
+): TradeReport[] {
+  const groupedTrades = trades.reduce<Record<string, TradingTrade[]>>((acc, trade) => {
+    const key = getPeriodKey(getTradeDate(trade), period);
+
+    if (!acc[key]) {
+      acc[key] = [];
+    }
+
+    acc[key].push(trade);
+
+    return acc;
+  }, {});
+
+  return Object.entries(groupedTrades)
+    .sort(([left], [right]) => (left < right ? 1 : -1))
+    .map(([periodKey, items]) => {
+      const closedTrades = items.filter((trade) => trade.status === 'closed');
+      const wins = closedTrades.filter((trade) => trade.netProfitLoss > 0).length;
+      const losses = closedTrades.filter((trade) => trade.netProfitLoss < 0).length;
+      const netProfitLoss = closedTrades.reduce(
+        (total, trade) => total + trade.netProfitLoss,
+        0
+      );
+      const averageRR =
+        closedTrades.length > 0
+          ? closedTrades.reduce((total, trade) => total + trade.rewardRiskRatio, 0) /
+            closedTrades.length
+          : 0;
+      const winRate = closedTrades.length > 0 ? (wins / closedTrades.length) * 100 : 0;
+      const checks: string[] = [];
+      let violationCount = 0;
+      let warningCount = 0;
+
+      if (!plan) {
+        checks.push('Trading plan has not been created yet.');
+        warningCount += 1;
+      } else {
+        const dailyTrades = items.reduce<Record<string, TradingTrade[]>>((acc, trade) => {
+          const dayKey = getTradeDayKey(trade);
+
+          if (!acc[dayKey]) {
+            acc[dayKey] = [];
+          }
+
+          acc[dayKey].push(trade);
+
+          return acc;
+        }, {});
+
+        Object.entries(dailyTrades).forEach(([dayKey, dayTrades]) => {
+          if (dayTrades.length > plan.maxTradesPerDay) {
+            violationCount += 1;
+            checks.push(
+              `${dayKey}: max trades exceeded (${dayTrades.length}/${plan.maxTradesPerDay}).`
+            );
+          }
+
+          const dailyNet = dayTrades
+            .filter((trade) => trade.status === 'closed')
+            .reduce((total, trade) => total + trade.netProfitLoss, 0);
+
+          if (dailyNet <= -Math.abs(plan.dailyMaxLossAmount)) {
+            violationCount += 1;
+            checks.push(
+              `${dayKey}: daily max loss hit (${formatCurrency(dailyNet, account.currency)}).`
+            );
+          }
+
+          if (
+            plan.dailyProfitTargetAmount > 0 &&
+            dailyNet >= plan.dailyProfitTargetAmount
+          ) {
+            checks.push(
+              `${dayKey}: daily profit target reached (${formatCurrency(
+                dailyNet,
+                account.currency
+              )}).`
+            );
+          }
+        });
+
+        items.forEach((trade) => {
+          if (
+            plan.allowedPairs.length > 0 &&
+            !plan.allowedPairs.some(
+              (pair) => pair.toUpperCase() === trade.pair.toUpperCase()
+            )
+          ) {
+            violationCount += 1;
+            checks.push(`${trade.pair}: pair is outside allowed plan pairs.`);
+          }
+
+          const maxRiskAmount =
+            trade.planRiskLimitAmountSnapshot > 0
+              ? trade.planRiskLimitAmountSnapshot
+              : (currentRealBalance * plan.riskPerTradePercent) / 100;
+
+          if (trade.riskAmount > maxRiskAmount && maxRiskAmount > 0) {
+            violationCount += 1;
+            checks.push(
+              `${trade.pair}: risk exceeds locked plan snapshot (${formatCurrency(
+                trade.riskAmount,
+                account.currency
+              )} > ${formatCurrency(maxRiskAmount, account.currency)}).`
+            );
+          }
+
+          if (!trade.planRiskLimitAmountSnapshot) {
+            warningCount += 1;
+            checks.push(`${trade.pair}: risk snapshot missing; using current balance fallback.`);
+          }
+
+          if (
+            trade.status === 'closed' &&
+            trade.rewardRiskRatio > 0 &&
+            trade.rewardRiskRatio < plan.minimumRewardRiskRatio
+          ) {
+            violationCount += 1;
+            checks.push(
+              `${trade.pair}: RR below plan (1:${trade.rewardRiskRatio} < 1:${plan.minimumRewardRiskRatio}).`
+            );
+          }
+
+          const sessionCheck = isWithinTradingSession(
+            trade.openDate,
+            plan.sessionStart,
+            plan.sessionEnd
+          );
+
+          if (sessionCheck === false) {
+            violationCount += 1;
+            checks.push(`${trade.pair}: entry was outside trading session.`);
+          }
+
+          if (sessionCheck === null) {
+            warningCount += 1;
+            checks.push(`${trade.pair}: session check needs open time data.`);
+          }
+        });
+
+        if (checks.length === 0) {
+          checks.push('No plan violation detected for this period.');
+        }
+      }
+
+      return {
+        periodKey,
+        label: getPeriodLabel(periodKey, period),
+        totalTrades: items.length,
+        closedTrades: closedTrades.length,
+        openTrades: items.filter((trade) => trade.status === 'open').length,
+        wins,
+        losses,
+        netProfitLoss,
+        winRate,
+        averageRR,
+        violationCount,
+        warningCount,
+        checks: checks.slice(0, 5),
+      };
+    });
+}
+
+function summarizeCompliance(reports: TradeReport[]) {
+  return reports.reduce(
+    (summary, report) => {
+      return {
+        reports: summary.reports + 1,
+        trades: summary.trades + report.totalTrades,
+        violations: summary.violations + report.violationCount,
+        warnings: summary.warnings + report.warningCount,
+      };
+    },
+    {
+      reports: 0,
+      trades: 0,
+      violations: 0,
+      warnings: 0,
+    }
+  );
+}
+
+function getTradeDate(trade: TradingTrade) {
+  return trade.closeDate || trade.openDate;
+}
+
+function getClosedTrades(trades: TradingTrade[]) {
+  return trades.filter((trade) => trade.status === 'closed');
+}
+
+function summarizeTradingPerformance(trades: TradingTrade[]) {
+  const closedTrades = getClosedTrades(trades);
+  const wins = closedTrades.filter((trade) => trade.netProfitLoss > 0).length;
+  const losses = closedTrades.filter((trade) => trade.netProfitLoss < 0).length;
+  const breakeven = closedTrades.filter((trade) => trade.netProfitLoss === 0).length;
+  const netProfitLoss = closedTrades.reduce(
+    (total, trade) => total + trade.netProfitLoss,
+    0
+  );
+  const totalRisk = closedTrades.reduce((total, trade) => total + trade.riskAmount, 0);
+  const averageRR =
+    closedTrades.length > 0
+      ? closedTrades.reduce((total, trade) => total + trade.rewardRiskRatio, 0) /
+        closedTrades.length
+      : 0;
+  const winRate = closedTrades.length > 0 ? (wins / closedTrades.length) * 100 : 0;
+
+  return {
+    totalTrades: trades.length,
+    closedTrades: closedTrades.length,
+    openTrades: trades.filter((trade) => trade.status === 'open').length,
+    wins,
+    losses,
+    breakeven,
+    winRate,
+    netProfitLoss,
+    totalRisk,
+    averageRR,
+  };
+}
+
 function formatPeriodName(period: PeriodFilter) {
   if (period === 'daily') return 'Daily';
   if (period === 'weekly') return 'Weekly';
   if (period === 'monthly') return 'Monthly';
 
   return 'Yearly';
+}
+
+
+function getTradingPlanRiskLimit(plan: TradingPlan | undefined, accountCurrency: Currency) {
+  if (!plan) {
+    return 'No plan';
+  }
+
+  const percentPart = `${plan.dailyMaxLossPercent}%`;
+  const amountPart = formatCurrency(plan.dailyMaxLossAmount, accountCurrency);
+
+  return `${percentPart} / ${amountPart}`;
+}
+
+function getTradingPlanPairs(plan: TradingPlan | undefined) {
+  if (!plan || plan.allowedPairs.length === 0) {
+    return 'No pairs set';
+  }
+
+  return plan.allowedPairs.join(', ');
 }
 
 export default function TradingAccountDetailScreen() {
@@ -390,6 +709,8 @@ export default function TradingAccountDetailScreen() {
   const accounts = useFinanceStore((state) => state.accounts);
   const tradingAccounts = useFinanceStore((state) => state.tradingAccounts);
   const tradingCashEvents = useFinanceStore((state) => state.tradingCashEvents);
+  const tradingPlans = useFinanceStore((state) => state.tradingPlans);
+  const tradingTrades = useFinanceStore((state) => state.tradingTrades);
   const exchangeRates = useFinanceStore((state) => state.exchangeRates);
   const defaultCurrency = useFinanceStore((state) => state.defaultCurrency);
 
@@ -409,9 +730,46 @@ export default function TradingAccountDetailScreen() {
       .sort((left, right) => Number(getDate(right.date)) - Number(getDate(left.date)));
   }, [tradingAccount, tradingCashEvents]);
 
+  const tradingPlan = tradingAccount
+    ? tradingPlans.find((plan) => plan.tradingAccountId === tradingAccount.id)
+    : undefined;
+
   const realBalance = tradingAccount
     ? getRealTradingAmount(tradingAccount, tradingAccount.balance)
     : 0;
+
+  const accountTrades = useMemo(() => {
+    if (!tradingAccount) {
+      return [];
+    }
+
+    return tradingTrades
+      .filter((trade) => trade.tradingAccountId === tradingAccount.id)
+      .sort((left, right) => Number(getDate(getTradeDate(right))) - Number(getDate(getTradeDate(left))));
+  }, [tradingAccount, tradingTrades]);
+
+  const tradingPerformance = useMemo(() => {
+    return summarizeTradingPerformance(accountTrades);
+  }, [accountTrades]);
+
+  const tradeReports = useMemo(() => {
+    if (!tradingAccount) {
+      return [];
+    }
+
+    return buildTradeReports(
+      accountTrades,
+      tradingPlan,
+      tradingAccount,
+      period,
+      realBalance
+    );
+  }, [accountTrades, period, realBalance, tradingAccount, tradingPlan]);
+
+  const complianceSummary = useMemo(() => {
+    return summarizeCompliance(tradeReports);
+  }, [tradeReports]);
+
   const realEquity = tradingAccount
     ? getRealTradingAmount(tradingAccount, tradingAccount.equity)
     : 0;
@@ -575,6 +933,84 @@ export default function TradingAccountDetailScreen() {
         />
       </View>
 
+      <View style={styles.planCard}>
+        <View style={styles.planHeader}>
+          <View style={styles.planIcon}>
+            <Ionicons name="document-text-outline" size={18} color={colors.text} />
+          </View>
+
+          <View style={styles.planHeaderText}>
+            <AppText variant="caption" muted>
+              Trading Plan
+            </AppText>
+
+            <AppText variant="body" style={styles.planTitle}>
+              {tradingPlan ? 'Plan active' : 'No trading plan yet'}
+            </AppText>
+          </View>
+
+          <Pressable
+            onPress={() =>
+              router.push(`/trading-plan?tradingAccountId=${tradingAccount.id}` as any)
+            }
+            style={styles.planAction}
+          >
+            <AppText variant="caption" style={styles.planActionText}>
+              {tradingPlan ? 'Edit' : 'Create'}
+            </AppText>
+          </Pressable>
+        </View>
+
+        <View style={styles.planMetricGrid}>
+          <PlanMetric
+            label="Daily Max Loss"
+            value={getTradingPlanRiskLimit(tradingPlan, tradingAccount.currency)}
+            colors={colors}
+          />
+
+          <PlanMetric
+            label="Daily Target"
+            value={
+              tradingPlan
+                ? `${tradingPlan.dailyProfitTargetPercent || 0}% / ${formatCurrency(
+                    tradingPlan.dailyProfitTargetAmount,
+                    tradingAccount.currency
+                  )}`
+                : 'No plan'
+            }
+            colors={colors}
+          />
+
+          <PlanMetric
+            label="Risk / Trade"
+            value={tradingPlan ? `${tradingPlan.riskPerTradePercent}%` : 'No plan'}
+            colors={colors}
+          />
+
+          <PlanMetric
+            label="Max Trades"
+            value={tradingPlan ? `${tradingPlan.maxTradesPerDay} / day` : 'No plan'}
+            colors={colors}
+          />
+
+          <PlanMetric
+            label="Minimum RR"
+            value={tradingPlan ? `1:${tradingPlan.minimumRewardRiskRatio}` : 'No plan'}
+            colors={colors}
+          />
+        </View>
+
+        <View style={styles.planNoteBox}>
+          <AppText variant="caption" muted>
+            Allowed pairs
+          </AppText>
+
+          <AppText variant="caption" style={styles.planNoteText} numberOfLines={2}>
+            {getTradingPlanPairs(tradingPlan)}
+          </AppText>
+        </View>
+      </View>
+
       <View style={styles.actionRow}>
         <Pressable
           onPress={() =>
@@ -599,6 +1035,31 @@ export default function TradingAccountDetailScreen() {
 
           <AppText variant="body" style={styles.secondaryActionText}>
             Withdraw
+          </AppText>
+        </Pressable>
+      </View>
+
+      <View style={styles.tradeActionCard}>
+        <View style={styles.tradeActionTextBox}>
+          <AppText variant="caption" muted>
+            Trade History
+          </AppText>
+
+          <AppText variant="body" style={styles.tradeActionTitle}>
+            Record your position result
+          </AppText>
+        </View>
+
+        <Pressable
+          onPress={() =>
+            router.push(`/add-trading-trade?tradingAccountId=${tradingAccount.id}` as any)
+          }
+          style={styles.tradeActionButton}
+        >
+          <Ionicons name="add-outline" size={18} color={colors.black} />
+
+          <AppText variant="caption" style={styles.tradeActionButtonText}>
+            Add Trade
           </AppText>
         </Pressable>
       </View>
@@ -689,6 +1150,239 @@ export default function TradingAccountDetailScreen() {
       </View>
 
       <View style={styles.sectionHeader}>
+        <AppText variant="subtitle">Trade Performance</AppText>
+        <AppText variant="caption" muted>
+          {tradingPerformance.closedTrades} closed
+        </AppText>
+      </View>
+
+      <View style={styles.tradeMetricGrid}>
+        <TradeMetric
+          label="Net P/L"
+          value={formatCurrency(tradingPerformance.netProfitLoss, tradingAccount.currency)}
+          color={tradingPerformance.netProfitLoss >= 0 ? colors.income : colors.expense}
+          colors={colors}
+        />
+
+        <TradeMetric
+          label="Win Rate"
+          value={`${tradingPerformance.winRate.toFixed(1)}%`}
+          color={colors.text}
+          colors={colors}
+        />
+
+        <TradeMetric
+          label="Average RR"
+          value={`1:${tradingPerformance.averageRR.toFixed(2)}`}
+          color={colors.text}
+          colors={colors}
+        />
+
+        <TradeMetric
+          label="Open Trades"
+          value={`${tradingPerformance.openTrades}`}
+          color={colors.text}
+          colors={colors}
+        />
+      </View>
+
+      <View style={styles.sectionHeader}>
+        <AppText variant="subtitle">Plan Compliance</AppText>
+        <AppText variant="caption" muted>
+          {period}
+        </AppText>
+      </View>
+
+      <View style={styles.complianceHeroCard}>
+        <View style={styles.complianceHeroIcon}>
+          <Ionicons
+            name={complianceSummary.violations > 0 ? 'alert-circle-outline' : 'shield-checkmark-outline'}
+            size={22}
+            color={complianceSummary.violations > 0 ? colors.expense : colors.income}
+          />
+        </View>
+
+        <View style={styles.complianceHeroText}>
+          <AppText variant="body" style={styles.complianceHeroTitle}>
+            {tradingPlan
+              ? complianceSummary.violations > 0
+                ? `${complianceSummary.violations} violation detected`
+                : 'No major violation detected'
+              : 'Trading plan needed'}
+          </AppText>
+
+          <AppText variant="caption" muted style={styles.complianceHeroDescription}>
+            {tradingPlan
+              ? `${complianceSummary.trades} trades checked • ${complianceSummary.warnings} warnings`
+              : 'Create a trading plan first to enable full rule checks.'}
+          </AppText>
+        </View>
+      </View>
+
+      <View style={styles.complianceReportList}>
+        {tradeReports.length === 0 ? (
+          <View style={styles.emptyCard}>
+            <Ionicons name="analytics-outline" size={30} color={colors.textMuted} />
+
+            <AppText variant="body" muted style={styles.emptyDescription}>
+              No trade report yet for this period filter.
+            </AppText>
+          </View>
+        ) : null}
+
+        {tradeReports.map((report) => (
+          <View key={report.periodKey} style={styles.complianceReportCard}>
+            <View style={styles.complianceReportHeader}>
+              <View style={styles.complianceReportTitleBox}>
+                <AppText variant="caption" muted>
+                  {report.label}
+                </AppText>
+
+                <AppText variant="body" style={styles.complianceReportTitle}>
+                  {report.totalTrades} trade{report.totalTrades === 1 ? '' : 's'} •{' '}
+                  {report.closedTrades} closed
+                </AppText>
+              </View>
+
+              <View
+                style={[
+                  styles.complianceBadge,
+                  report.violationCount > 0 ? styles.complianceBadgeDanger : null,
+                ]}
+              >
+                <AppText
+                  variant="caption"
+                  style={[
+                    styles.complianceBadgeText,
+                    report.violationCount > 0 ? styles.complianceBadgeTextDanger : null,
+                  ]}
+                >
+                  {report.violationCount > 0
+                    ? `${report.violationCount} issue`
+                    : 'OK'}
+                </AppText>
+              </View>
+            </View>
+
+            <View style={styles.complianceMetricRow}>
+              <ReportMetric
+                label="Net P/L"
+                value={formatCurrency(report.netProfitLoss, tradingAccount.currency)}
+                color={report.netProfitLoss >= 0 ? colors.income : colors.expense}
+                colors={colors}
+              />
+
+              <ReportMetric
+                label="Win Rate"
+                value={`${report.winRate.toFixed(1)}%`}
+                color={colors.text}
+                colors={colors}
+              />
+
+              <ReportMetric
+                label="Avg RR"
+                value={`1:${report.averageRR.toFixed(2)}`}
+                color={colors.text}
+                colors={colors}
+              />
+            </View>
+
+            <View style={styles.checkList}>
+              {report.checks.map((check, index) => (
+                <View key={`${report.periodKey}-${index}`} style={styles.checkItem}>
+                  <Ionicons
+                    name={check.includes('No plan violation') || check.includes('target reached') ? 'checkmark-circle-outline' : 'ellipse-outline'}
+                    size={15}
+                    color={
+                      check.includes('No plan violation') || check.includes('target reached')
+                        ? colors.income
+                        : colors.textMuted
+                    }
+                  />
+
+                  <AppText variant="caption" muted style={styles.checkText}>
+                    {check}
+                  </AppText>
+                </View>
+              ))}
+            </View>
+          </View>
+        ))}
+      </View>
+
+      <View style={styles.sectionHeader}>
+        <AppText variant="subtitle">Trade History</AppText>
+        <AppText variant="caption" muted>
+          {accountTrades.length} trade{accountTrades.length === 1 ? '' : 's'}
+        </AppText>
+      </View>
+
+      <View style={styles.tradeList}>
+        {accountTrades.length === 0 ? (
+          <View style={styles.emptyCard}>
+            <Ionicons name="clipboard-outline" size={30} color={colors.textMuted} />
+
+            <AppText variant="body" muted style={styles.emptyDescription}>
+              No trade history yet. Add your first trade result to start account analysis.
+            </AppText>
+          </View>
+        ) : null}
+
+        {accountTrades.map((trade) => (
+          <Pressable
+            key={trade.id}
+            onPress={() => router.push(`/trading-trade-detail?tradeId=${trade.id}` as any)}
+            style={styles.tradeCard}
+          >
+            <View style={styles.tradeIcon}>
+              <Ionicons
+                name={trade.direction === 'buy' ? 'trending-up-outline' : 'trending-down-outline'}
+                size={18}
+                color={trade.netProfitLoss >= 0 ? colors.income : colors.expense}
+              />
+            </View>
+
+            <View style={styles.tradeTextBox}>
+              <AppText variant="body" style={styles.tradeTitle}>
+                {trade.pair} • {trade.direction.toUpperCase()}
+              </AppText>
+
+              <AppText variant="caption" muted style={styles.tradeDescription}>
+                {trade.status.toUpperCase()} • Lot {trade.lotSize} • Risk{' '}
+                {formatCurrency(trade.riskAmount, trade.currency)} • RR 1:
+                {trade.rewardRiskRatio || 0}
+              </AppText>
+
+              <AppText variant="caption" muted style={styles.tradeDescription}>
+                {new Intl.DateTimeFormat('id-ID', {
+                  day: '2-digit',
+                  month: 'short',
+                  year: 'numeric',
+                }).format(getDate(getTradeDate(trade)))}
+              </AppText>
+            </View>
+
+            <View style={styles.tradeAmountBox}>
+              <AppText
+                variant="caption"
+                style={[
+                  styles.tradeAmount,
+                  { color: trade.netProfitLoss >= 0 ? colors.income : colors.expense },
+                ]}
+                numberOfLines={1}
+              >
+                {formatCurrency(trade.netProfitLoss, trade.currency)}
+              </AppText>
+
+              <AppText variant="caption" muted numberOfLines={1}>
+                {trade.setupTag || 'No setup'}
+              </AppText>
+            </View>
+          </Pressable>
+        ))}
+      </View>
+
+      <View style={styles.sectionHeader}>
         <AppText variant="subtitle">AI Summary Center</AppText>
         <AppText variant="caption" muted>
           readiness
@@ -752,7 +1446,7 @@ export default function TradingAccountDetailScreen() {
               <Ionicons name="sparkles-outline" size={16} color={colors.textMuted} />
 
               <AppText variant="caption" muted style={styles.aiNoteText}>
-                Next phase: Trading Plan + Trade History will let AI analyze discipline, mistakes, rule violations, and account development.
+                Next phase: AI Summary will use Trade Reports + Plan Compliance to write daily, weekly, monthly, and yearly analysis.
               </AppText>
             </View>
           </View>
@@ -1081,6 +1775,56 @@ function InfoLine({
   );
 }
 
+function TradeMetric({
+  label,
+  value,
+  color,
+  colors,
+}: {
+  label: string;
+  value: string;
+  color: string;
+  colors: ThemeColors;
+}) {
+  const styles = createStyles(colors);
+
+  return (
+    <View style={styles.tradeMetric}>
+      <AppText variant="caption" muted>
+        {label}
+      </AppText>
+
+      <AppText variant="caption" style={[styles.tradeMetricValue, { color }]} numberOfLines={1}>
+        {value}
+      </AppText>
+    </View>
+  );
+}
+
+function PlanMetric({
+  label,
+  value,
+  colors,
+}: {
+  label: string;
+  value: string;
+  colors: ThemeColors;
+}) {
+  const styles = createStyles(colors);
+
+  return (
+    <View style={styles.planMetric}>
+      <AppText variant="caption" muted>
+        {label}
+      </AppText>
+
+      <AppText variant="caption" style={styles.planMetricValue} numberOfLines={1}>
+        {value}
+      </AppText>
+    </View>
+  );
+}
+
 function ReportMetric({
   label,
   value,
@@ -1325,6 +2069,84 @@ function createStyles(colors: ThemeColors) {
       color: colors.text,
       fontWeight: '900',
     },
+    planCard: {
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 24,
+      padding: 15,
+      gap: 14,
+      marginBottom: 16,
+    },
+    planHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 11,
+    },
+    planIcon: {
+      width: 38,
+      height: 38,
+      borderRadius: 15,
+      backgroundColor: colors.surfaceSoft,
+      borderWidth: 1,
+      borderColor: colors.border,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    planHeaderText: {
+      flex: 1,
+      minWidth: 0,
+    },
+    planTitle: {
+      color: colors.text,
+      fontWeight: '900',
+      marginTop: 2,
+    },
+    planAction: {
+      minHeight: 34,
+      borderRadius: 999,
+      backgroundColor: colors.primary,
+      paddingHorizontal: 12,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    planActionText: {
+      color: colors.black,
+      fontWeight: '900',
+    },
+    planMetricGrid: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 8,
+    },
+    planMetric: {
+      flexGrow: 1,
+      flexBasis: '47%',
+      minWidth: 130,
+      backgroundColor: colors.surfaceSoft,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 16,
+      padding: 10,
+      gap: 4,
+    },
+    planMetricValue: {
+      color: colors.text,
+      fontWeight: '900',
+    },
+    planNoteBox: {
+      backgroundColor: colors.surfaceSoft,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 16,
+      padding: 10,
+      gap: 4,
+    },
+    planNoteText: {
+      color: colors.text,
+      fontWeight: '900',
+      lineHeight: 18,
+    },
     actionRow: {
       flexDirection: 'row',
       gap: 10,
@@ -1358,6 +2180,199 @@ function createStyles(colors: ThemeColors) {
     },
     secondaryActionText: {
       color: colors.text,
+      fontWeight: '900',
+    },
+    tradeActionCard: {
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 22,
+      padding: 13,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+      marginBottom: 18,
+    },
+    tradeActionTextBox: {
+      flex: 1,
+      minWidth: 0,
+    },
+    tradeActionTitle: {
+      color: colors.text,
+      fontWeight: '900',
+      marginTop: 3,
+    },
+    tradeActionButton: {
+      minHeight: 40,
+      borderRadius: 15,
+      backgroundColor: colors.primary,
+      alignItems: 'center',
+      justifyContent: 'center',
+      flexDirection: 'row',
+      gap: 6,
+      paddingHorizontal: 12,
+    },
+    tradeActionButtonText: {
+      color: colors.black,
+      fontWeight: '900',
+    },
+    tradeMetricGrid: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 8,
+      marginBottom: 18,
+    },
+    tradeMetric: {
+      flexGrow: 1,
+      flexBasis: '47%',
+      minWidth: 130,
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 18,
+      padding: 12,
+      gap: 4,
+    },
+    tradeMetricValue: {
+      fontWeight: '900',
+    },
+    complianceHeroCard: {
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 24,
+      padding: 14,
+      flexDirection: 'row',
+      gap: 12,
+      alignItems: 'center',
+      marginBottom: 12,
+    },
+    complianceHeroIcon: {
+      width: 44,
+      height: 44,
+      borderRadius: 16,
+      backgroundColor: colors.surfaceSoft,
+      borderWidth: 1,
+      borderColor: colors.border,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    complianceHeroText: {
+      flex: 1,
+      minWidth: 0,
+    },
+    complianceHeroTitle: {
+      color: colors.text,
+      fontWeight: '900',
+    },
+    complianceHeroDescription: {
+      marginTop: 4,
+      lineHeight: 18,
+    },
+    complianceReportList: {
+      gap: 12,
+      marginBottom: 18,
+    },
+    complianceReportCard: {
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 24,
+      padding: 14,
+      gap: 12,
+    },
+    complianceReportHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: 12,
+    },
+    complianceReportTitleBox: {
+      flex: 1,
+      minWidth: 0,
+    },
+    complianceReportTitle: {
+      color: colors.text,
+      fontWeight: '900',
+      marginTop: 3,
+    },
+    complianceBadge: {
+      borderRadius: 999,
+      backgroundColor: colors.surfaceSoft,
+      borderWidth: 1,
+      borderColor: colors.border,
+      paddingHorizontal: 10,
+      paddingVertical: 6,
+    },
+    complianceBadgeDanger: {
+      borderColor: colors.expense,
+      backgroundColor: colors.surfaceSoft,
+    },
+    complianceBadgeText: {
+      color: colors.text,
+      fontWeight: '900',
+    },
+    complianceBadgeTextDanger: {
+      color: colors.expense,
+    },
+    complianceMetricRow: {
+      flexDirection: 'row',
+      gap: 8,
+      flexWrap: 'wrap',
+    },
+    checkList: {
+      gap: 8,
+    },
+    checkItem: {
+      flexDirection: 'row',
+      gap: 8,
+      alignItems: 'flex-start',
+    },
+    checkText: {
+      flex: 1,
+      lineHeight: 18,
+    },
+    tradeList: {
+      gap: 10,
+      marginBottom: 18,
+    },
+    tradeCard: {
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 22,
+      padding: 13,
+      flexDirection: 'row',
+      gap: 11,
+      alignItems: 'center',
+    },
+    tradeIcon: {
+      width: 42,
+      height: 42,
+      borderRadius: 16,
+      backgroundColor: colors.surfaceSoft,
+      borderWidth: 1,
+      borderColor: colors.border,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    tradeTextBox: {
+      flex: 1,
+      minWidth: 0,
+    },
+    tradeTitle: {
+      color: colors.text,
+      fontWeight: '900',
+    },
+    tradeDescription: {
+      marginTop: 3,
+      lineHeight: 18,
+    },
+    tradeAmountBox: {
+      maxWidth: 120,
+      alignItems: 'flex-end',
+    },
+    tradeAmount: {
       fontWeight: '900',
     },
     sectionHeader: {
