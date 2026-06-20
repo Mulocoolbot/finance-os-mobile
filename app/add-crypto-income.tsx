@@ -14,7 +14,7 @@ import {
   type InvestmentAssetSearchResult,
 } from '../src/services/investmentAssetSearch';
 import { useFinanceStore } from '../src/stores/useFinanceStore';
-import { Category, Currency, InvestmentHolding } from '../src/types/finance';
+import { Account, Category, Currency, InvestmentHolding } from '../src/types/finance';
 import { formatCurrency } from '../src/utils/currency';
 
 const currencies: Currency[] = ['IDR', 'USD', 'EUR'];
@@ -22,6 +22,27 @@ const currencies: Currency[] = ['IDR', 'USD', 'EUR'];
 function parseNumber(value: string) {
   const parsedValue = Number(value || 0);
   return Number.isFinite(parsedValue) ? parsedValue : 0;
+}
+
+function getCryptoWalletSupportError({
+  account,
+  symbol,
+}: {
+  account: Account;
+  symbol: string;
+}) {
+  if (account.type !== 'crypto_wallet') {
+    return null;
+  }
+
+  const normalizedSymbol = symbol.trim().toUpperCase();
+  const enabledSymbols = account.supportedCryptoSymbols || [];
+
+  if (enabledSymbols.length > 0 && !enabledSymbols.includes(normalizedSymbol)) {
+    return `${normalizedSymbol || 'This crypto'} is not enabled for ${account.name}. Open Crypto Wallets and select it from API/provider first.`;
+  }
+
+  return null;
 }
 
 function makeTempCryptoHolding({
@@ -265,6 +286,16 @@ export default function AddCryptoIncomeScreen() {
   function handleSubmit() {
     if (!selectedAccount) {
       Alert.alert('Finance OS Mobile', 'Create/select crypto wallet or broker account first.');
+      return;
+    }
+
+    const supportError = getCryptoWalletSupportError({
+      account: selectedAccount,
+      symbol: selectedHolding?.symbol || symbol,
+    });
+
+    if (supportError) {
+      Alert.alert('Finance OS Mobile', supportError);
       return;
     }
 

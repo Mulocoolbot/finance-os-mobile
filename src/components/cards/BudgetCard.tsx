@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 import { ThemeColors } from '../../constants/colors';
 import { useThemeColors } from '../../hooks/useThemeColors';
 import { Budget, Currency } from '../../types/finance';
@@ -13,6 +13,7 @@ type BudgetCardProps = {
   usedAmount: number;
   displayCurrency?: Currency;
   exchangeRates?: ExchangeRates;
+  onPress?: () => void;
 };
 
 const fallbackExchangeRates: ExchangeRates = {
@@ -57,6 +58,7 @@ export function BudgetCard({
   usedAmount,
   displayCurrency,
   exchangeRates,
+  onPress,
 }: BudgetCardProps) {
   const colors = useThemeColors();
   const styles = createStyles(colors);
@@ -67,7 +69,13 @@ export function BudgetCard({
   const percentage = budget.limitAmount > 0 ? (usedAmount / budget.limitAmount) * 100 : 0;
   const cappedPercentage = Math.min(percentage, 100);
   const remaining = budget.limitAmount - usedAmount;
-  const status = getBudgetStatus(colors, percentage);
+  const status = budget.isActive
+    ? getBudgetStatus(colors, percentage)
+    : {
+        label: 'Archived',
+        color: colors.textMuted,
+        icon: 'archive-outline',
+      };
 
   const convertedUsedAmount = convertCurrencyAmount(
     usedAmount,
@@ -85,7 +93,7 @@ export function BudgetCard({
   const hasConvertedDisplay = budget.currency !== currencyBase;
 
   return (
-    <View style={styles.card}>
+    <Pressable onPress={onPress} style={styles.card}>
       <View style={styles.header}>
         <View style={[styles.iconBox, { borderColor: status.color }]}>
           <Ionicons name="wallet-outline" size={22} color={status.color} />
@@ -177,7 +185,17 @@ export function BudgetCard({
           {formatCompactCurrency(budget.limitAmount, budget.currency)}
         </AppText>
       ) : null}
-    </View>
+
+      {onPress ? (
+        <View style={styles.editHint}>
+          <AppText variant="caption" muted>
+            Tap to manage budget
+          </AppText>
+
+          <Ionicons name="create-outline" size={15} color={colors.textMuted} />
+        </View>
+      ) : null}
+    </Pressable>
   );
 }
 
@@ -279,6 +297,15 @@ function createStyles(colors: ThemeColors) {
     originalText: {
       marginTop: 10,
       lineHeight: 18,
+    },
+    editHint: {
+      marginTop: 12,
+      borderTopWidth: 1,
+      borderTopColor: colors.border,
+      paddingTop: 10,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
     },
   });
 }

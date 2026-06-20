@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { Alert, Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { AppText } from '../src/components/ui/AppText';
@@ -8,48 +8,91 @@ import { Screen } from '../src/components/ui/Screen';
 import { ThemeColors } from '../src/constants/colors';
 import { useThemeColors } from '../src/hooks/useThemeColors';
 import { useFinanceStore } from '../src/stores/useFinanceStore';
-import { Account } from '../src/types/finance';
+import { Account, SavingGoal } from '../src/types/finance';
 import { formatCurrency } from '../src/utils/currency';
 
 function parseAmount(value: string) {
   return Number(value.replace(/[^0-9.]/g, '') || 0);
 }
 
+const savingStatusOptions: { label: string; value: SavingGoal['status'] }[] = [
+  { label: 'Active', value: 'active' },
+  { label: 'Completed', value: 'completed' },
+  { label: 'Paused', value: 'paused' },
+  { label: 'Cancelled', value: 'cancelled' },
+];
+
 export default function AddSavingScreen() {
   const colors = useThemeColors();
   const styles = createStyles(colors);
+  const params = useLocalSearchParams<{ savingGoalId?: string }>();
+  const savingGoalId =
+    typeof params.savingGoalId === 'string' ? params.savingGoalId : '';
 
   const accounts = useFinanceStore((state) => state.accounts);
+  const savingGoals = useFinanceStore((state) => state.savingGoals);
   const addSavingGoal = useFinanceStore((state) => state.addSavingGoal);
+  const updateSavingGoal = useFinanceStore((state) => state.updateSavingGoal);
+  const deleteSavingGoal = useFinanceStore((state) => state.deleteSavingGoal);
   const defaultCurrency = useFinanceStore((state) => state.defaultCurrency);
+
+  const existingSavingGoal = savingGoals.find((saving) => saving.id === savingGoalId);
+  const isEditMode = Boolean(existingSavingGoal);
 
   const sourceAccounts = useMemo(() => {
     return accounts.filter((account) => account.isActive && account.type !== 'saving');
   }, [accounts]);
 
-  const [name, setName] = useState('');
-  const [targetAmount, setTargetAmount] = useState('');
-  const [initialAmount, setInitialAmount] = useState('');
-  const [linkedSourceAccountId, setLinkedSourceAccountId] = useState(sourceAccounts[0]?.id || '');
-  const [deadline, setDeadline] = useState('');
-  const [note, setNote] = useState('');
+  const [name, setName] = useState(existingSavingGoal?.name || '');
+  const [targetAmount, setTargetAmount] = useState(
+    existingSavingGoal ? String(existingSavingGoal.targetAmount) : ''
+  );
+  const [initialAmount, setInitialAmount] = useState(
+    existingSavingGoal ? String(existingSavingGoal.currentAmount) : ''
+  );
+  const [linkedSourceAccountId, setLinkedSourceAccountId] = useState(
+    existingSavingGoal?.linkedSourceAccountId || sourceAccounts[0]?.id || ''
+  );
+  const [deadline, setDeadline] = useState(existingSavingGoal?.deadline || '');
+  const [note, setNote] = useState(existingSavingGoal?.note || '');
+  const [status, setStatus] = useState<SavingGoal['status']>(
+    existingSavingGoal?.status || 'active'
+  );
 
   const selectedSourceAccount = sourceAccounts.find(
     (account) => account.id === linkedSourceAccountId
   );
-  const savingCurrency = selectedSourceAccount?.currency || defaultCurrency;
+  const savingCurrency =
+    selectedSourceAccount?.currency || existingSavingGoal?.currency || defaultCurrency;
 
   function handleSubmit() {
     const effectiveSourceId = linkedSourceAccountId || sourceAccounts[0]?.id || '';
 
-    const result = addSavingGoal({
-      name,
-      targetAmount: parseAmount(targetAmount),
-      linkedSourceAccountId: effectiveSourceId,
-      initialAmount: parseAmount(initialAmount),
-      deadline: deadline.trim() || undefined,
-      note: note.trim() || undefined,
-    });
+    if (isEditMode && !existingSavingGoal) {
+      Alert.alert('Finance OS Mobile', 'Saving goal not found.');
+      return;
+    }
+
+    const result =
+      isEditMode && existingSavingGoal
+        ? updateSavingGoal({
+            savingGoalId: existingSavingGoal.id,
+            name,
+            targetAmount: parseAmount(targetAmount),
+            currentAmount: parseAmount(initialAmount),
+            linkedSourceAccountId: effectiveSourceId,
+            deadline: deadline.trim() || undefined,
+            note: note.trim() || undefined,
+            status,
+          })
+        : addSavingGoal({
+            name,
+            targetAmount: parseAmount(targetAmount),
+            linkedSourceAccountId: effectiveSourceId,
+            initialAmount: parseAmount(initialAmount),
+            deadline: deadline.trim() || undefined,
+            note: note.trim() || undefined,
+          });
 
     if (!result.success) {
       Alert.alert('Finance OS Mobile', result.message);
@@ -58,6 +101,41 @@ export default function AddSavingScreen() {
 
     Alert.alert('Finance OS Mobile', result.message);
     router.back();
+  }
+
+  function handleDelete() {
+    if (!isEditMode || !existingSavingGoal) {
+      Alert.alert('Finance OS Mobile', 'Saving goal not found.');
+      return;
+    }
+
+    Alert.alert(
+      'Delete Saving Goal',
+      existingSavingGoal.currentAmount > 0
+        ? 'This will delete the saving goal and return the saved amount to the linked source account. Continue?'
+        : 'This will permanently delete the saving goal. Continue?',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: () => {
+            const result = deleteSavingGoal(existingSavingGoal.id);
+
+            if (!result.success) {
+              Alert.alert('Finance OS Mobile', result.message);
+              return;
+            }
+
+            Alert.alert('Finance OS Mobile', result.message);
+            router.back();
+          },
+        },
+      ]
+    );
   }
 
   return (
@@ -73,7 +151,7 @@ export default function AddSavingScreen() {
           </AppText>
 
           <AppText variant="title" style={styles.title}>
-            Add Saving Goal
+            {isEditMode ? 'Edit Saving Goal' : 'Add Saving Goal'}
           </AppText>
         </View>
       </View>
@@ -105,14 +183,14 @@ export default function AddSavingScreen() {
         />
 
         <NumericAmountInput
-          label="Initial Amount"
+          label={isEditMode ? "Current Saved Amount" : "Initial Amount"}
           value={initialAmount}
           onChangeText={setInitialAmount}
           placeholder="500000"
           currency={savingCurrency}
           icon="sparkles-outline"
           quickValues={savingCurrency === 'IDR' ? ['100000', '500000', '1000000'] : ['50', '100', '250']}
-          helperText="Initial amount will be moved from the selected source account into the saving goal."
+          helperText={isEditMode ? "Edit adjusts the saving wallet balance as correction, not a new transaction." : "Initial amount will be moved from the selected source account into the saving goal."}
         />
 
         <SourceAccountPicker
@@ -121,6 +199,14 @@ export default function AddSavingScreen() {
           onSelect={setLinkedSourceAccountId}
           colors={colors}
         />
+
+        {isEditMode ? (
+          <StatusPicker
+            status={status}
+            onChange={setStatus}
+            colors={colors}
+          />
+        ) : null}
 
         <View style={styles.field}>
           <AppText variant="caption" muted style={styles.label}>
@@ -151,13 +237,67 @@ export default function AddSavingScreen() {
           />
         </View>
 
+        {isEditMode ? (
+          <Pressable onPress={handleDelete} style={styles.deleteButton}>
+            <Ionicons name="trash-outline" size={18} color={colors.expense} />
+
+            <AppText variant="body" style={styles.deleteText}>
+              Delete Saving Goal
+            </AppText>
+          </Pressable>
+        ) : null}
+
         <Pressable onPress={handleSubmit} style={styles.submitButton}>
           <AppText variant="body" style={styles.submitText}>
-            Save Goal
+            {isEditMode ? 'Update Goal' : 'Save Goal'}
           </AppText>
         </Pressable>
       </View>
     </Screen>
+  );
+}
+
+function StatusPicker({
+  status,
+  onChange,
+  colors,
+}: {
+  status: SavingGoal['status'];
+  onChange: (status: SavingGoal['status']) => void;
+  colors: ThemeColors;
+}) {
+  const styles = createStyles(colors);
+
+  return (
+    <View style={styles.field}>
+      <AppText variant="caption" muted style={styles.label}>
+        Status
+      </AppText>
+
+      <View style={styles.statusGrid}>
+        {savingStatusOptions.map((option) => {
+          const selected = status === option.value;
+
+          return (
+            <Pressable
+              key={option.value}
+              onPress={() => onChange(option.value)}
+              style={[styles.statusChip, selected ? styles.statusChipActive : null]}
+            >
+              <AppText
+                variant="caption"
+                style={[
+                  styles.statusChipText,
+                  selected ? styles.statusChipTextActive : null,
+                ]}
+              >
+                {option.label}
+              </AppText>
+            </Pressable>
+          );
+        })}
+      </View>
+    </View>
   );
 }
 
@@ -287,6 +427,30 @@ function createStyles(colors: ThemeColors) {
     optionList: {
       gap: 10,
     },
+    statusGrid: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 8,
+    },
+    statusChip: {
+      borderRadius: 999,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+      paddingHorizontal: 12,
+      paddingVertical: 9,
+    },
+    statusChipActive: {
+      backgroundColor: colors.primary,
+      borderColor: colors.primary,
+    },
+    statusChipText: {
+      color: colors.textMuted,
+      fontWeight: '900',
+    },
+    statusChipTextActive: {
+      color: colors.black,
+    },
     optionCard: {
       backgroundColor: colors.surface,
       borderWidth: 1,
@@ -342,6 +506,22 @@ function createStyles(colors: ThemeColors) {
       height: 10,
       borderRadius: 999,
       backgroundColor: colors.black,
+    },
+    deleteButton: {
+      marginTop: 4,
+      minHeight: 54,
+      borderRadius: 18,
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.expense,
+      alignItems: 'center',
+      justifyContent: 'center',
+      flexDirection: 'row',
+      gap: 8,
+    },
+    deleteText: {
+      color: colors.expense,
+      fontWeight: '900',
     },
     submitButton: {
       marginTop: 8,

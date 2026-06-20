@@ -291,6 +291,9 @@ export default function AddTransactionScreen() {
 
   const sourceAccounts = mode === 'saving_withdrawal' ? savingAccounts : normalAccounts;
   const destinationAccounts = mode === 'saving_deposit' ? savingAccounts : normalAccounts;
+  const selectedModeOption = modeOptions.find((item) => item.value === mode);
+  const previewAmount = parseAmount(amount);
+  const currentModeTone = getModeTone(colors, mode);
 
   return (
     <Screen>
@@ -310,7 +313,61 @@ export default function AddTransactionScreen() {
         </View>
       </View>
 
+      <View style={styles.previewCard}>
+        <View style={[styles.previewIcon, { borderColor: currentModeTone }]}>
+          <Ionicons
+            name={selectedModeOption?.icon || 'receipt-outline'}
+            size={22}
+            color={currentModeTone}
+          />
+        </View>
+
+        <View style={styles.previewTextBox}>
+          <AppText variant="caption" muted>
+            Transaction Preview
+          </AppText>
+
+          <AppText variant="subtitle" style={styles.previewTitle} numberOfLines={1}>
+            {getTransactionTitle()}
+          </AppText>
+
+          <AppText variant="caption" muted style={styles.previewDescription}>
+            {selectedModeOption?.label || 'Transaction'} · {getLongDateLabel(selectedDate)}
+          </AppText>
+        </View>
+
+        <View style={styles.previewAmountBox}>
+          <AppText variant="caption" muted>
+            Amount
+          </AppText>
+
+          <AppText
+            variant="body"
+            style={[styles.previewAmount, { color: previewAmount > 0 ? currentModeTone : colors.textMuted }]}
+            numberOfLines={1}
+          >
+            {previewAmount > 0 ? formatCurrency(previewAmount, currency) : '—'}
+          </AppText>
+        </View>
+      </View>
+
       <View style={styles.form}>
+        <View style={styles.sectionMiniHeader}>
+          <View>
+            <AppText variant="caption" muted>
+              Step 1
+            </AppText>
+
+            <AppText variant="subtitle" style={styles.sectionMiniTitle}>
+              Transaction type
+            </AppText>
+          </View>
+
+          <AppText variant="caption" muted style={styles.sectionMiniHint}>
+            Choose flow
+          </AppText>
+        </View>
+
         <View style={styles.modeGrid}>
           {modeOptions.map((item) => {
             const selected = mode === item.value;
@@ -377,6 +434,22 @@ export default function AddTransactionScreen() {
               </AppText>
             </Pressable>
           </View>
+        </View>
+
+        <View style={styles.sectionMiniHeader}>
+          <View>
+            <AppText variant="caption" muted>
+              Step 2
+            </AppText>
+
+            <AppText variant="subtitle" style={styles.sectionMiniTitle}>
+              Transaction details
+            </AppText>
+          </View>
+
+          <AppText variant="caption" muted style={styles.sectionMiniHint}>
+            Amount & currency
+          </AppText>
         </View>
 
         <View style={styles.field}>
@@ -476,6 +549,22 @@ export default function AddTransactionScreen() {
           />
         ) : null}
 
+        <View style={styles.sectionMiniHeader}>
+          <View>
+            <AppText variant="caption" muted>
+              Step 3
+            </AppText>
+
+            <AppText variant="subtitle" style={styles.sectionMiniTitle}>
+              Date & note
+            </AppText>
+          </View>
+
+          <AppText variant="caption" muted style={styles.sectionMiniHint}>
+            Final detail
+          </AppText>
+        </View>
+
         <View style={styles.calendarCard}>
           <View style={styles.calendarHeader}>
             <Pressable onPress={() => moveCalendarMonth(-1)} style={styles.calendarArrow}>
@@ -564,6 +653,8 @@ export default function AddTransactionScreen() {
         </View>
 
         <Pressable onPress={handleSubmit} style={styles.submitButton}>
+          <Ionicons name="checkmark-circle-outline" size={19} color={colors.black} />
+
           <AppText variant="body" style={styles.submitText}>
             Save Transaction
           </AppText>
@@ -777,8 +868,64 @@ function createStyles(colors: ThemeColors) {
     title: {
       marginTop: 4,
     },
+    previewCard: {
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 24,
+      padding: 14,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+      marginBottom: 18,
+    },
+    previewIcon: {
+      width: 46,
+      height: 46,
+      borderRadius: 17,
+      backgroundColor: colors.surfaceSoft,
+      borderWidth: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    previewTextBox: {
+      flex: 1,
+      minWidth: 0,
+    },
+    previewTitle: {
+      marginTop: 4,
+      color: colors.text,
+    },
+    previewDescription: {
+      marginTop: 3,
+      lineHeight: 18,
+    },
+    previewAmountBox: {
+      alignItems: 'flex-end',
+      maxWidth: 132,
+      gap: 4,
+    },
+    previewAmount: {
+      fontWeight: '900',
+      textAlign: 'right',
+    },
     form: {
       gap: 18,
+    },
+    sectionMiniHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'flex-end',
+      gap: 12,
+      marginTop: 2,
+      marginBottom: -4,
+    },
+    sectionMiniTitle: {
+      marginTop: 3,
+      color: colors.text,
+    },
+    sectionMiniHint: {
+      fontWeight: '900',
     },
     modeGrid: {
       flexDirection: 'row',
@@ -1026,6 +1173,8 @@ function createStyles(colors: ThemeColors) {
       backgroundColor: colors.primary,
       alignItems: 'center',
       justifyContent: 'center',
+      flexDirection: 'row',
+      gap: 8,
     },
     submitText: {
       color: colors.black,

@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { Alert, Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { AppText } from '../src/components/ui/AppText';
@@ -35,21 +35,43 @@ const iconOptions = [
 export default function AddCategoryScreen() {
   const colors = useThemeColors();
   const styles = createStyles(colors);
+  const params = useLocalSearchParams<{ categoryId?: string }>();
+  const categoryId =
+    typeof params.categoryId === 'string' ? params.categoryId : '';
 
+  const categories = useFinanceStore((state) => state.categories);
   const addCategory = useFinanceStore((state) => state.addCategory);
+  const updateCategory = useFinanceStore((state) => state.updateCategory);
+  const deleteCategory = useFinanceStore((state) => state.deleteCategory);
 
-  const [name, setName] = useState('');
-  const [type, setType] = useState<CategoryType>('expense');
-  const [selectedColor, setSelectedColor] = useState(colorOptions[0]);
-  const [selectedIcon, setSelectedIcon] = useState(iconOptions[0]);
+  const existingCategory = categories.find((category) => category.id === categoryId);
+  const isEditMode = Boolean(existingCategory);
+
+  const [name, setName] = useState(existingCategory?.name || '');
+  const [type, setType] = useState<CategoryType>(existingCategory?.type || 'expense');
+  const [selectedColor, setSelectedColor] = useState(
+    existingCategory?.color || colorOptions[0]
+  );
+  const [selectedIcon, setSelectedIcon] = useState(
+    existingCategory?.icon || iconOptions[0]
+  );
 
   function handleSubmit() {
-    const result = addCategory({
-      name,
-      type,
-      color: selectedColor,
-      icon: selectedIcon,
-    });
+    const result =
+      isEditMode && existingCategory
+        ? updateCategory({
+            categoryId: existingCategory.id,
+            name,
+            type,
+            color: selectedColor,
+            icon: selectedIcon,
+          })
+        : addCategory({
+            name,
+            type,
+            color: selectedColor,
+            icon: selectedIcon,
+          });
 
     if (!result.success) {
       Alert.alert('Finance OS Mobile', result.message);
@@ -58,6 +80,41 @@ export default function AddCategoryScreen() {
 
     Alert.alert('Finance OS Mobile', result.message);
     router.back();
+  }
+
+  function handleDelete() {
+    if (!isEditMode || !existingCategory) {
+      Alert.alert('Finance OS Mobile', 'Category not found.');
+      return;
+    }
+
+    Alert.alert(
+      'Delete Category',
+      existingCategory.isDefault
+        ? 'Default category will be archived instead of permanently deleted. Continue?'
+        : 'This category will be deleted if unused, or archived if it is used by transactions/budgets. Continue?',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: () => {
+            const result = deleteCategory(existingCategory.id);
+
+            if (!result.success) {
+              Alert.alert('Finance OS Mobile', result.message);
+              return;
+            }
+
+            Alert.alert('Finance OS Mobile', result.message);
+            router.back();
+          },
+        },
+      ]
+    );
   }
 
   return (
@@ -73,7 +130,7 @@ export default function AddCategoryScreen() {
           </AppText>
 
           <AppText variant="title" style={styles.title}>
-            Add Category
+            {isEditMode ? 'Edit Category' : 'Add Category'}
           </AppText>
         </View>
       </View>
@@ -204,9 +261,19 @@ export default function AddCategoryScreen() {
           </View>
         </View>
 
+        {isEditMode ? (
+          <Pressable onPress={handleDelete} style={styles.deleteButton}>
+            <Ionicons name="trash-outline" size={18} color={colors.expense} />
+
+            <AppText variant="body" style={styles.deleteText}>
+              Delete Category
+            </AppText>
+          </Pressable>
+        ) : null}
+
         <Pressable onPress={handleSubmit} style={styles.submitButton}>
           <AppText variant="body" style={styles.submitText}>
-            Save Category
+            {isEditMode ? 'Update Category' : 'Save Category'}
           </AppText>
         </Pressable>
       </View>
@@ -351,6 +418,22 @@ function createStyles(colors: ThemeColors) {
       backgroundColor: colors.primary,
       alignItems: 'center',
       justifyContent: 'center',
+    },
+    deleteButton: {
+      marginTop: 4,
+      minHeight: 54,
+      borderRadius: 18,
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.expense,
+      alignItems: 'center',
+      justifyContent: 'center',
+      flexDirection: 'row',
+      gap: 8,
+    },
+    deleteText: {
+      color: colors.expense,
+      fontWeight: '900',
     },
     submitText: {
       color: colors.black,

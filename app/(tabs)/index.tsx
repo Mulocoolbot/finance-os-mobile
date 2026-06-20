@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { AppText } from '../../src/components/ui/AppText';
 import { Screen } from '../../src/components/ui/Screen';
 import { StatCard } from '../../src/components/ui/StatCard';
@@ -691,7 +691,26 @@ export default function HomeScreen() {
         </View>
       </View>
 
-      <View style={styles.quickActions}>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={styles.quickActionsScroll}
+        contentContainerStyle={styles.quickActionsContent}
+      >
+        <QuickAction
+          icon="add-circle-outline"
+          label="Add"
+          onPress={() => router.push('/add-transaction')}
+          colors={colors}
+        />
+
+        <QuickAction
+          icon="search-outline"
+          label="Search"
+          onPress={() => router.push('/advanced-search')}
+          colors={colors}
+        />
+
         <QuickAction
           icon="sparkles-outline"
           label="Savings"
@@ -705,7 +724,42 @@ export default function HomeScreen() {
           onPress={() => router.push('/accounts')}
           colors={colors}
         />
-      </View>
+
+        <QuickAction
+          icon="speedometer-outline"
+          label="Budget"
+          onPress={() => router.push('/budget')}
+          colors={colors}
+        />
+
+        <QuickAction
+          icon="bar-chart-outline"
+          label="Reports"
+          onPress={() => router.push('/reports')}
+          colors={colors}
+        />
+
+        <QuickAction
+          icon="book-outline"
+          label="Journal"
+          onPress={() => router.push('/journal')}
+          colors={colors}
+        />
+
+        <QuickAction
+          icon="sparkles-outline"
+          label="AI Coach"
+          onPress={() => router.push('/trading-ai-performance')}
+          colors={colors}
+        />
+
+        <QuickAction
+          icon="pie-chart-outline"
+          label="Profit Pool"
+          onPress={() => router.push('/trading-profit-pool')}
+          colors={colors}
+        />
+      </ScrollView>
 
       <View style={styles.netWorthHistoryCard}>
         <View style={styles.netWorthHistoryHeader}>
@@ -1141,6 +1195,32 @@ export default function HomeScreen() {
         />
       </View>
 
+      <Pressable onPress={() => router.push('/budget')} style={styles.dashboardAlertCard}>
+        <View style={styles.dashboardAlertIcon}>
+          <Ionicons
+            name={dashboard.activeBudgetCount > 0 ? 'speedometer-outline' : 'add-circle-outline'}
+            size={20}
+            color={colors.text}
+          />
+        </View>
+
+        <View style={styles.dashboardAlertTextBox}>
+          <AppText variant="body" style={styles.dashboardAlertTitle}>
+            {dashboard.activeBudgetCount > 0
+              ? `${dashboard.activeBudgetCount} active budget tracker`
+              : 'No active budget yet'}
+          </AppText>
+
+          <AppText variant="caption" muted style={styles.dashboardAlertDescription}>
+            {dashboard.activeBudgetCount > 0
+              ? 'Open budget to review spending control, archived budgets, and category limits.'
+              : 'Create a budget to monitor monthly or weekly category spending.'}
+          </AppText>
+        </View>
+
+        <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+      </Pressable>
+
       <View style={styles.progressCard}>
         <View style={styles.progressHeader}>
           <View style={styles.progressTextBox}>
@@ -1171,7 +1251,7 @@ export default function HomeScreen() {
       <View style={styles.sectionHeader}>
         <AppText variant="subtitle">Recent Activity</AppText>
 
-        <Pressable onPress={() => router.push('/transactions')}>
+        <Pressable onPress={() => router.push('/reports')}>
           <AppText variant="caption" style={styles.viewAllText}>
             View all
           </AppText>
@@ -1194,6 +1274,12 @@ export default function HomeScreen() {
             key={transaction.id}
             transaction={transaction}
             colors={colors}
+            onPress={() =>
+              router.push({
+                pathname: '/transaction-detail',
+                params: { transactionId: transaction.id },
+              })
+            }
           />
         ))}
       </View>
@@ -1227,9 +1313,11 @@ function QuickAction({ icon, label, onPress, colors }: QuickActionProps) {
 function RecentTransactionRow({
   transaction,
   colors,
+  onPress,
 }: {
   transaction: Transaction;
   colors: ThemeColors;
+  onPress?: () => void;
 }) {
   const styles = createStyles(colors);
   const toneColor = getTransactionTone(colors, transaction.type);
@@ -1237,7 +1325,7 @@ function RecentTransactionRow({
   const sign = getTransactionSign(transaction.type);
 
   return (
-    <View style={styles.transactionRow}>
+    <Pressable onPress={onPress} style={styles.transactionRow}>
       <View
         style={[
           styles.transactionIcon,
@@ -1260,19 +1348,26 @@ function RecentTransactionRow({
         </AppText>
       </View>
 
-      <AppText
-        variant="body"
-        style={[
-          styles.transactionAmount,
-          {
-            color: toneColor,
-          },
-        ]}
-      >
-        {sign}
-        {formatCurrency(transaction.amount, transaction.currency)}
-      </AppText>
-    </View>
+      <View style={styles.transactionAmountBox}>
+        <AppText
+          variant="body"
+          style={[
+            styles.transactionAmount,
+            {
+              color: toneColor,
+            },
+          ]}
+          numberOfLines={1}
+        >
+          {sign}
+          {formatCurrency(transaction.amount, transaction.currency)}
+        </AppText>
+
+        {onPress ? (
+          <Ionicons name="chevron-forward" size={14} color={colors.textMuted} />
+        ) : null}
+      </View>
+    </Pressable>
   );
 }
 
@@ -1426,20 +1521,26 @@ function createStyles(colors: ThemeColors) {
     liveRateFooterText: {
       lineHeight: 17,
     },
-    quickActions: {
+    quickActionsScroll: {
       marginTop: 18,
-      flexDirection: 'row',
+      marginHorizontal: -2,
+    },
+    quickActionsContent: {
+      paddingHorizontal: 2,
+      paddingRight: 18,
       gap: 10,
     },
     quickActionCard: {
-      flex: 1,
+      width: 104,
+      minHeight: 82,
+      borderRadius: 20,
       backgroundColor: colors.surface,
       borderWidth: 1,
       borderColor: colors.border,
-      borderRadius: 20,
-      paddingVertical: 14,
       alignItems: 'center',
+      justifyContent: 'center',
       gap: 9,
+      paddingHorizontal: 10,
     },
     quickActionIcon: {
       width: 42,
@@ -1739,6 +1840,39 @@ function createStyles(colors: ThemeColors) {
       flexWrap: 'wrap',
       gap: 12,
     },
+    dashboardAlertCard: {
+      marginTop: 18,
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 24,
+      padding: 16,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+    },
+    dashboardAlertIcon: {
+      width: 44,
+      height: 44,
+      borderRadius: 16,
+      backgroundColor: colors.surfaceSoft,
+      borderWidth: 1,
+      borderColor: colors.border,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    dashboardAlertTextBox: {
+      flex: 1,
+      minWidth: 0,
+    },
+    dashboardAlertTitle: {
+      color: colors.text,
+      fontWeight: '900',
+    },
+    dashboardAlertDescription: {
+      marginTop: 4,
+      lineHeight: 18,
+    },
     progressCard: {
       marginTop: 18,
       backgroundColor: colors.surface,
@@ -1827,6 +1961,11 @@ function createStyles(colors: ThemeColors) {
     },
     transactionMeta: {
       marginTop: 4,
+    },
+    transactionAmountBox: {
+      alignItems: 'flex-end',
+      gap: 4,
+      maxWidth: 132,
     },
     transactionAmount: {
       fontWeight: '900',

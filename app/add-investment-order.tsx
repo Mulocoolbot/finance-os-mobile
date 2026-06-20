@@ -367,6 +367,22 @@ export default function AddInvestmentOrderScreen() {
         </View>
       </View>
 
+      <View style={styles.sectionMiniHeader}>
+        <View>
+          <AppText variant="caption" muted>
+            Step 1
+          </AppText>
+
+          <AppText variant="subtitle" style={styles.sectionMiniTitle}>
+            Order direction
+          </AppText>
+        </View>
+
+        <AppText variant="caption" muted style={styles.sectionMiniHint}>
+          Buy / Sell
+        </AppText>
+      </View>
+
       <View style={styles.typeSwitch}>
         <Pressable
           onPress={() => setOrderType('buy')}
@@ -403,6 +419,22 @@ export default function AddInvestmentOrderScreen() {
             Sell
           </AppText>
         </Pressable>
+      </View>
+
+      <View style={styles.sectionMiniHeader}>
+        <View>
+          <AppText variant="caption" muted>
+            Step 2
+          </AppText>
+
+          <AppText variant="subtitle" style={styles.sectionMiniTitle}>
+            Currency & mode
+          </AppText>
+        </View>
+
+        <AppText variant="caption" muted style={styles.sectionMiniHint}>
+          Conversion
+        </AppText>
       </View>
 
       <View style={styles.section}>
@@ -497,6 +529,22 @@ export default function AddInvestmentOrderScreen() {
               ? 'Input money amount to buy. Quantity is calculated from price.'
               : 'Input money amount to sell. Quantity is calculated from price.'
             : 'Input exact asset quantity for this order.'}
+        </AppText>
+      </View>
+
+      <View style={styles.sectionMiniHeader}>
+        <View>
+          <AppText variant="caption" muted>
+            Step 3
+          </AppText>
+
+          <AppText variant="subtitle" style={styles.sectionMiniTitle}>
+            Quantity, price & fee
+          </AppText>
+        </View>
+
+        <AppText variant="caption" muted style={styles.sectionMiniHint}>
+          Order size
         </AppText>
       </View>
 
@@ -630,6 +678,22 @@ export default function AddInvestmentOrderScreen() {
         helperText="Broker/exchange fee. Use 0 if there is no fee."
       />
 
+      <View style={styles.sectionMiniHeader}>
+        <View>
+          <AppText variant="caption" muted>
+            Step 4
+          </AppText>
+
+          <AppText variant="subtitle" style={styles.sectionMiniTitle}>
+            Preview & account impact
+          </AppText>
+        </View>
+
+        <AppText variant="caption" muted style={styles.sectionMiniHint}>
+          Check first
+        </AppText>
+      </View>
+
       <View style={styles.previewCard}>
         <View style={styles.previewHeader}>
           <AppText variant="subtitle">Preview</AppText>
@@ -728,6 +792,22 @@ export default function AddInvestmentOrderScreen() {
         </View>
       </View>
 
+      <View style={styles.sectionMiniHeader}>
+        <View>
+          <AppText variant="caption" muted>
+            Step 5
+          </AppText>
+
+          <AppText variant="subtitle" style={styles.sectionMiniTitle}>
+            Note & save
+          </AppText>
+        </View>
+
+        <AppText variant="caption" muted style={styles.sectionMiniHint}>
+          Final
+        </AppText>
+      </View>
+
       <View style={styles.field}>
         <AppText variant="caption" muted style={styles.label}>
           Note
@@ -744,6 +824,12 @@ export default function AddInvestmentOrderScreen() {
       </View>
 
       <Pressable onPress={handleSubmit} style={styles.submitButton}>
+        <Ionicons
+          name={orderType === 'buy' ? 'add-circle-outline' : 'remove-circle-outline'}
+          size={19}
+          color={colors.black}
+        />
+
         <AppText variant="body" style={styles.submitButtonText}>
           Save {orderType === 'buy' ? 'Buy' : 'Sell'} Order
         </AppText>
@@ -811,6 +897,21 @@ function createStyles(colors: ThemeColors) {
       marginTop: 4,
       fontWeight: '900',
       color: colors.investment,
+    },
+    sectionMiniHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'flex-end',
+      gap: 12,
+      marginTop: 4,
+      marginBottom: 10,
+    },
+    sectionMiniTitle: {
+      marginTop: 3,
+      color: colors.text,
+    },
+    sectionMiniHint: {
+      fontWeight: '900',
     },
     typeSwitch: {
       flexDirection: 'row',
@@ -1076,6 +1177,8 @@ function createStyles(colors: ThemeColors) {
       backgroundColor: colors.primary,
       alignItems: 'center',
       justifyContent: 'center',
+      flexDirection: 'row',
+      gap: 8,
       paddingHorizontal: 18,
       marginTop: 6,
     },

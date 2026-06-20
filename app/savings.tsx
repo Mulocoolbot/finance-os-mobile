@@ -216,6 +216,24 @@ export default function SavingsScreen() {
             accounts={accounts}
             displayCurrency={defaultCurrency}
             exchangeRates={exchangeRates}
+            onPress={() =>
+              router.push({
+                pathname: '/add-saving',
+                params: { savingGoalId: savingGoal.id },
+              })
+            }
+            onDeposit={() =>
+              router.push({
+                pathname: '/saving-cash-event',
+                params: { savingGoalId: savingGoal.id, mode: 'deposit' },
+              })
+            }
+            onWithdrawal={() =>
+              router.push({
+                pathname: '/saving-cash-event',
+                params: { savingGoalId: savingGoal.id, mode: 'withdrawal' },
+              })
+            }
           />
         ))}
       </View>

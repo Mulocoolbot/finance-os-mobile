@@ -89,9 +89,7 @@ export default function EditAccountScreen() {
   const investmentHoldings = useFinanceStore((state) => state.investmentHoldings);
   const updateAccount = useFinanceStore((state) => state.updateAccount);
   const deleteAccount = useFinanceStore((state) => state.deleteAccount);
-  const permanentlyDeleteAccount = useFinanceStore(
-    (state) => state.permanentlyDeleteAccount
-  );
+  const permanentlyDeleteAccount = useFinanceStore((state) => state.permanentlyDeleteAccount);
 
   const account = accounts.find((item) => item.id === params.accountId);
 
@@ -118,19 +116,29 @@ export default function EditAccountScreen() {
     if (!account) {
       return {
         transactionCount: 0,
+        adjustmentTransactionCount: 0,
+        blockingTransactionCount: 0,
         savingCount: 0,
         investmentCount: 0,
-        hasLinkedData: false,
+        hasAnyLinkedHistory: false,
+        hasBlockingLinkedData: false,
+        hasOnlyAdjustmentHistory: false,
       };
     }
 
-    const transactionCount = transactions.filter((transaction) => {
+    const linkedTransactions = transactions.filter((transaction) => {
       return (
         transaction.accountId === account.id ||
         transaction.fromAccountId === account.id ||
         transaction.toAccountId === account.id
       );
-    }).length;
+    });
+    const adjustmentTransactionCount = linkedTransactions.filter(
+      (transaction) => transaction.type === 'adjustment'
+    ).length;
+    const blockingTransactionCount =
+      linkedTransactions.length - adjustmentTransactionCount;
+
     const savingCount = savingGoals.filter((savingGoal) => {
       return (
         savingGoal.savingAccountId === account.id ||
@@ -140,12 +148,22 @@ export default function EditAccountScreen() {
     const investmentCount = investmentHoldings.filter((holding) => {
       return holding.accountId === account.id;
     }).length;
+    const hasBlockingLinkedData =
+      blockingTransactionCount > 0 || savingCount > 0 || investmentCount > 0;
 
     return {
-      transactionCount,
+      transactionCount: linkedTransactions.length,
+      adjustmentTransactionCount,
+      blockingTransactionCount,
       savingCount,
       investmentCount,
-      hasLinkedData: transactionCount > 0 || savingCount > 0 || investmentCount > 0,
+      hasAnyLinkedHistory:
+        linkedTransactions.length > 0 || savingCount > 0 || investmentCount > 0,
+      hasBlockingLinkedData,
+      hasOnlyAdjustmentHistory:
+        linkedTransactions.length > 0 &&
+        adjustmentTransactionCount === linkedTransactions.length &&
+        !hasBlockingLinkedData,
     };
   }, [account, transactions, savingGoals, investmentHoldings]);
 
@@ -176,18 +194,28 @@ export default function EditAccountScreen() {
       return;
     }
 
+    if (!usage.hasBlockingLinkedData && account.balance > 0.00000001) {
+      Alert.alert(
+        'Set Balance to 0 First',
+        'This account can be deleted permanently after its saved balance is 0. Save the balance as 0 first, then tap Delete Permanently.'
+      );
+      return;
+    }
+
     Alert.alert(
-      usage.hasLinkedData ? 'Archive Account' : 'Delete Account',
-      usage.hasLinkedData
-        ? `${account.name} has linked history. It will be archived instead of permanently deleted.`
-        : `Delete ${account.name}? This cannot be undone.`,
+      usage.hasBlockingLinkedData ? 'Archive Account' : 'Delete Permanently',
+      usage.hasBlockingLinkedData
+        ? `${account.name} has important linked history, so it will be archived instead of permanently deleted.`
+        : usage.hasOnlyAdjustmentHistory
+          ? `Delete ${account.name}? Its balance-adjustment history will also be cleaned up.`
+          : `Delete ${account.name}? This cannot be undone.`,
       [
         {
           text: 'Cancel',
           style: 'cancel',
         },
         {
-          text: usage.hasLinkedData ? 'Archive' : 'Delete',
+          text: usage.hasBlockingLinkedData ? 'Archive' : 'Delete Permanently',
           style: 'destructive',
           onPress: () => {
             const result = deleteAccount(account.id);
@@ -202,25 +230,32 @@ export default function EditAccountScreen() {
       ]
     );
   }
-
   function handlePermanentDelete() {
     if (!account) {
       Alert.alert('Finance OS Mobile', 'Account not found.');
       return;
     }
 
+    if (account.balance > 0.00000001) {
+      Alert.alert(
+        'Set Balance to 0 First',
+        'Save this account balance as 0 first. After that you can delete it permanently and clean linked history.'
+      );
+      return;
+    }
+
     Alert.alert(
       'Delete Permanently',
-      usage.hasLinkedData
-        ? `This will permanently delete ${account.name} and all linked transactions, savings, investment holdings, investment orders, and price history. This cannot be undone.`
-        : `This will permanently delete ${account.name}. This cannot be undone.`,
+      usage.hasAnyLinkedHistory
+        ? `This will permanently delete ${account.name} and clean linked transactions, saving links, investment records, and broker-wallet cash events. This cannot be undone.`
+        : `Delete ${account.name}? This cannot be undone.`,
       [
         {
           text: 'Cancel',
           style: 'cancel',
         },
         {
-          text: 'Delete Forever',
+          text: 'Delete Permanently',
           style: 'destructive',
           onPress: () => {
             const result = permanentlyDeleteAccount(account.id);
@@ -235,6 +270,7 @@ export default function EditAccountScreen() {
       ]
     );
   }
+
 
   if (!account) {
     return (
@@ -459,7 +495,7 @@ export default function EditAccountScreen() {
 
         <Pressable onPress={handleSave} style={styles.saveButton}>
           <AppText variant="body" style={styles.saveButtonText}>
-            Save Account Changes
+            {account.isActive ? 'Save Account Changes' : 'Restore & Save Account'}
           </AppText>
         </Pressable>
 
@@ -470,25 +506,27 @@ export default function EditAccountScreen() {
             </AppText>
 
             <AppText variant="caption" muted style={styles.dangerDescription}>
-              {usage.hasLinkedData
-                ? `Linked data: ${usage.transactionCount} transaction(s), ${usage.savingCount} saving(s), ${usage.investmentCount} investment holding(s). Archive keeps history. Delete Permanently removes linked data too.`
-                : 'This account has no linked records. You can archive or permanently delete it.'}
+              {usage.hasAnyLinkedHistory
+                ? `Linked history found: ${usage.transactionCount} transaction(s), ${usage.savingCount} saving(s), ${usage.investmentCount} investment holding(s). Archive keeps history. Delete Permanently cleans linked history.`
+                : 'No linked history found. Delete Permanently is available when saved balance is 0.'}
             </AppText>
           </View>
 
           <View style={styles.removalActionStack}>
-            <Pressable onPress={handleDelete} style={styles.archiveButton}>
-              <Ionicons name="archive-outline" size={17} color={colors.text} />
+            {usage.hasAnyLinkedHistory ? (
+              <Pressable onPress={handleDelete} style={styles.archiveButton}>
+                <Ionicons name="archive-outline" size={17} color={colors.text} />
 
-              <AppText variant="body" style={styles.archiveButtonText}>
-                {usage.hasLinkedData ? 'Archive' : 'Safe Delete'}
-              </AppText>
-            </Pressable>
+                <AppText variant="body" style={styles.archiveButtonText}>
+                  Archive Account
+                </AppText>
+              </Pressable>
+            ) : null}
 
-            <Pressable onPress={handlePermanentDelete} style={styles.deleteButton}>
+            <Pressable onPress={handlePermanentDelete} style={styles.permanentDeleteButton}>
               <Ionicons name="trash-outline" size={17} color={colors.expense} />
 
-              <AppText variant="body" style={styles.deleteButtonText}>
+              <AppText variant="body" style={styles.permanentDeleteButtonText}>
                 Delete Permanently
               </AppText>
             </Pressable>
@@ -736,6 +774,22 @@ function createStyles(colors: ThemeColors) {
     },
     archiveButtonText: {
       color: colors.text,
+      fontWeight: '900',
+    },
+    permanentDeleteButton: {
+      minHeight: 44,
+      borderRadius: 16,
+      backgroundColor: colors.surfaceSoft,
+      borderWidth: 1,
+      borderColor: colors.expense,
+      alignItems: 'center',
+      justifyContent: 'center',
+      flexDirection: 'row',
+      gap: 8,
+      paddingHorizontal: 14,
+    },
+    permanentDeleteButtonText: {
+      color: colors.expense,
       fontWeight: '900',
     },
     deleteButton: {

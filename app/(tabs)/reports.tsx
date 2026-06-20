@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useMemo, useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { router } from 'expo-router';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { AppText } from '../../src/components/ui/AppText';
 import { Screen } from '../../src/components/ui/Screen';
 import { StatCard } from '../../src/components/ui/StatCard';
@@ -136,6 +137,54 @@ function getTransactionSign(type: Transaction['type']) {
   }
 
   return 0;
+}
+
+function getTransactionTypeLabel(type: Transaction['type']) {
+  if (type === 'income') return 'Income';
+  if (type === 'expense') return 'Expense';
+  if (type === 'transfer') return 'Transfer';
+  if (type === 'saving_deposit') return 'Saving Deposit';
+  if (type === 'saving_withdrawal') return 'Saving Withdrawal';
+  if (type === 'investment_buy') return 'Investment Buy';
+  if (type === 'investment_sell') return 'Investment Sell';
+
+  return 'Transaction';
+}
+
+function getTransactionIcon(type: Transaction['type']) {
+  if (type === 'income') return 'arrow-down-circle-outline';
+  if (type === 'expense') return 'arrow-up-circle-outline';
+  if (type === 'transfer') return 'swap-horizontal-outline';
+  if (type === 'saving_deposit') return 'add-circle-outline';
+  if (type === 'saving_withdrawal') return 'remove-circle-outline';
+  if (type === 'investment_buy') return 'trending-up-outline';
+  if (type === 'investment_sell') return 'cash-outline';
+
+  return 'receipt-outline';
+}
+
+function getTransactionAmountColor(type: Transaction['type'], colors: ThemeColors) {
+  if (type === 'income' || type === 'saving_deposit' || type === 'investment_sell') {
+    return colors.income;
+  }
+
+  if (type === 'expense' || type === 'saving_withdrawal' || type === 'investment_buy') {
+    return colors.expense;
+  }
+
+  return colors.text;
+}
+
+function getTransactionPrefix(type: Transaction['type']) {
+  if (type === 'income' || type === 'saving_withdrawal' || type === 'investment_sell') {
+    return '+';
+  }
+
+  if (type === 'expense' || type === 'saving_deposit' || type === 'investment_buy') {
+    return '-';
+  }
+
+  return '';
 }
 
 function buildCategoryBreakdown(transactions: Transaction[]) {
@@ -918,6 +967,7 @@ export default function ReportsScreen() {
   const exchangeRates = useFinanceStore((state) => state.exchangeRates);
 
   const [reportMode, setReportMode] = useState<ReportMode>('monthly');
+  const [selectedTradingAccountId, setSelectedTradingAccountId] = useState('all');
   const [selectedMonth, setSelectedMonth] = useState(() => {
     const now = new Date();
 
@@ -945,6 +995,14 @@ export default function ReportsScreen() {
       selectedYear
     );
   }, [investmentOrders, reportMode, selectedMonth, selectedYear]);
+
+  const recentPeriodTransactions = useMemo(() => {
+    return [...periodTransactions]
+      .sort((first, second) => {
+        return new Date(second.date).getTime() - new Date(first.date).getTime();
+      })
+      .slice(0, 12);
+  }, [periodTransactions]);
 
   const summary = useMemo(() => {
     return getSummary(periodTransactions);
@@ -991,11 +1049,59 @@ export default function ReportsScreen() {
     exchangeRates,
   ]);
 
+  const filteredTradingAccounts = useMemo(() => {
+    if (selectedTradingAccountId === 'all') {
+      return tradingAccounts;
+    }
+
+    return tradingAccounts.filter((account) => account.id === selectedTradingAccountId);
+  }, [selectedTradingAccountId, tradingAccounts]);
+
+  const filteredTradingTrades = useMemo(() => {
+    if (selectedTradingAccountId === 'all') {
+      return tradingTrades;
+    }
+
+    return tradingTrades.filter((trade) => trade.tradingAccountId === selectedTradingAccountId);
+  }, [selectedTradingAccountId, tradingTrades]);
+
+  const filteredTradingPlans = useMemo(() => {
+    if (selectedTradingAccountId === 'all') {
+      return tradingPlans;
+    }
+
+    return tradingPlans.filter((plan) => plan.tradingAccountId === selectedTradingAccountId);
+  }, [selectedTradingAccountId, tradingPlans]);
+
+  const selectedTradingAccount = useMemo(() => {
+    if (selectedTradingAccountId === 'all') {
+      return null;
+    }
+
+    return tradingAccounts.find((account) => account.id === selectedTradingAccountId) ?? null;
+  }, [selectedTradingAccountId, tradingAccounts]);
+
+  const selectedTradingAccountHasPlan = useMemo(() => {
+    if (!selectedTradingAccount) {
+      return true;
+    }
+
+    return tradingPlans.some((plan) => plan.tradingAccountId === selectedTradingAccount.id);
+  }, [selectedTradingAccount, tradingPlans]);
+
+  const selectedTradingAccountHasActivity = useMemo(() => {
+    if (!selectedTradingAccount) {
+      return false;
+    }
+
+    return tradingTrades.some((trade) => trade.tradingAccountId === selectedTradingAccount.id);
+  }, [selectedTradingAccount, tradingTrades]);
+
   const tradingAISummary = useMemo(() => {
     return buildTradingAIReports(
-      tradingAccounts,
-      tradingTrades,
-      tradingPlans,
+      filteredTradingAccounts,
+      filteredTradingTrades,
+      filteredTradingPlans,
       reportMode,
       selectedMonth,
       selectedYear,
@@ -1003,9 +1109,9 @@ export default function ReportsScreen() {
       exchangeRates
     );
   }, [
-    tradingAccounts,
-    tradingTrades,
-    tradingPlans,
+    filteredTradingAccounts,
+    filteredTradingTrades,
+    filteredTradingPlans,
     reportMode,
     selectedMonth,
     selectedYear,
@@ -1125,6 +1231,63 @@ export default function ReportsScreen() {
         </Pressable>
       </View>
 
+      <View style={styles.reportControlCard}>
+        <View style={styles.reportControlHeader}>
+          <View style={styles.reportControlTextBox}>
+            <AppText variant="caption" muted>
+              Report Center
+            </AppText>
+
+            <AppText variant="subtitle" style={styles.reportControlTitle}>
+              Period overview
+            </AppText>
+
+            <AppText variant="caption" muted style={styles.reportControlDescription}>
+              Cashflow, investments, crypto, and trading are summarized for this selected period.
+            </AppText>
+          </View>
+
+          <Pressable
+            onPress={() => router.push('/advanced-search')}
+            style={styles.reportSearchButton}
+          >
+            <Ionicons name="search-outline" size={18} color={colors.text} />
+          </Pressable>
+        </View>
+
+        <View style={styles.reportOverviewGrid}>
+          <View style={styles.reportOverviewItem}>
+            <AppText variant="caption" muted>
+              Cash Records
+            </AppText>
+
+            <AppText variant="subtitle" style={styles.reportOverviewValue}>
+              {periodTransactions.length}
+            </AppText>
+          </View>
+
+          <View style={styles.reportOverviewItem}>
+            <AppText variant="caption" muted>
+              Orders
+            </AppText>
+
+            <AppText variant="subtitle" style={styles.reportOverviewValue}>
+              {periodInvestmentOrders.length}
+            </AppText>
+          </View>
+
+          <View style={styles.reportOverviewItem}>
+            <AppText variant="caption" muted>
+              Closed Trades
+            </AppText>
+
+            <AppText variant="subtitle" style={styles.reportOverviewValue}>
+              {tradingAISummary.closedTrades}
+            </AppText>
+          </View>
+        </View>
+      </View>
+
       <View style={styles.heroCard}>
         <View style={styles.heroTop}>
           <View style={styles.heroTextBox}>
@@ -1185,12 +1348,138 @@ export default function ReportsScreen() {
       </View>
 
       <View style={styles.sectionHeader}>
-        <AppText variant="subtitle">Trading AI Summary</AppText>
+        <AppText variant="subtitle">Transaction Activity</AppText>
 
         <AppText variant="caption" muted>
-          {tradingAISummary.closedTrades} closed
+          {periodTransactions.length} records
         </AppText>
       </View>
+
+      <View style={styles.transactionListCard}>
+        {recentPeriodTransactions.length === 0 ? (
+          <View style={styles.emptyBox}>
+            <AppText variant="body" style={styles.emptyTitle}>
+              No transactions in this period
+            </AppText>
+
+            <AppText variant="caption" muted style={styles.emptyDescription}>
+              Income, expense, transfer, saving, and investment activity will appear here.
+            </AppText>
+          </View>
+        ) : null}
+
+        {recentPeriodTransactions.map((transaction) => (
+          <TransactionActivityRow
+            key={transaction.id}
+            transaction={transaction}
+            colors={colors}
+            styles={styles}
+            onPress={() =>
+              router.push({
+                pathname: '/transaction-detail',
+                params: { transactionId: transaction.id },
+              })
+            }
+          />
+        ))}
+      </View>
+
+      <View style={styles.sectionHeader}>
+        <AppText variant="subtitle">Trading AI Summary</AppText>
+
+        <Pressable
+          onPress={() => router.push('/trading-ai-performance')}
+          style={styles.sectionActionButton}
+        >
+          <Ionicons name="sparkles-outline" size={14} color={colors.text} />
+
+          <AppText variant="caption" style={styles.sectionActionText}>
+            Open AI Coach
+          </AppText>
+        </Pressable>
+      </View>
+
+      <View style={styles.tradingFilterCard}>
+        <AppText variant="caption" muted style={styles.tradingFilterLabel}>
+          Trading Account Filter
+        </AppText>
+
+        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+          <View style={styles.tradingFilterRow}>
+            <Pressable
+              onPress={() => setSelectedTradingAccountId('all')}
+              style={[
+                styles.tradingFilterChip,
+                selectedTradingAccountId === 'all' ? styles.tradingFilterChipActive : null,
+              ]}
+            >
+              <AppText
+                variant="caption"
+                style={[
+                  styles.tradingFilterChipText,
+                  selectedTradingAccountId === 'all'
+                    ? styles.tradingFilterChipTextActive
+                    : null,
+                ]}
+              >
+                All Accounts
+              </AppText>
+            </Pressable>
+
+            {tradingAccounts.map((account) => {
+              const active = selectedTradingAccountId === account.id;
+
+              return (
+                <Pressable
+                  key={account.id}
+                  onPress={() => setSelectedTradingAccountId(account.id)}
+                  style={[
+                    styles.tradingFilterChip,
+                    active ? styles.tradingFilterChipActive : null,
+                  ]}
+                >
+                  <AppText
+                    variant="caption"
+                    style={[
+                      styles.tradingFilterChipText,
+                      active ? styles.tradingFilterChipTextActive : null,
+                    ]}
+                    numberOfLines={1}
+                  >
+                    {account.name}
+                  </AppText>
+                </Pressable>
+              );
+            })}
+          </View>
+        </ScrollView>
+      </View>
+
+      {!selectedTradingAccountHasPlan && selectedTradingAccountHasActivity ? (
+        <Pressable
+          onPress={() =>
+            router.push({
+              pathname: '/trading-plan',
+              params: { tradingAccountId: selectedTradingAccount?.id ?? '' },
+            })
+          }
+          style={styles.tradingWarningCard}
+        >
+          <Ionicons name="warning-outline" size={18} color={colors.expense} />
+
+          <View style={styles.tradingWarningTextBox}>
+            <AppText variant="body" style={styles.tradingWarningTitle}>
+              Trading plan missing
+            </AppText>
+
+            <AppText variant="caption" muted style={styles.tradingWarningDescription}>
+              This account has trading activity but no active trading plan. Tap here to create one.
+            </AppText>
+          </View>
+
+          <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+        </Pressable>
+      ) : null}
 
       <View style={styles.tradingHeroCard}>
         <View style={styles.tradingHeroIcon}>
@@ -1258,6 +1547,14 @@ export default function ReportsScreen() {
       </View>
 
       <View style={styles.tradingInsightCard}>
+        <View style={styles.tradingInsightHeader}>
+          <Ionicons name="analytics-outline" size={17} color={colors.text} />
+
+          <AppText variant="body" style={styles.tradingInsightTitle}>
+            AI-style Insight
+          </AppText>
+        </View>
+
         {tradingAISummary.insights.map((insight, index) => (
           <View key={`trading-insight-${index}`} style={styles.tradingInsightRow}>
             <Ionicons
@@ -1292,6 +1589,13 @@ export default function ReportsScreen() {
             report={accountReport}
             defaultCurrency={defaultCurrency}
             styles={styles}
+            colors={colors}
+            onPress={() =>
+              router.push({
+                pathname: '/trading-account-detail',
+                params: { tradingAccountId: accountReport.accountId },
+              })
+            }
           />
         ))}
       </View>
@@ -1539,19 +1843,74 @@ export default function ReportsScreen() {
   );
 }
 
+function TransactionActivityRow({
+  transaction,
+  colors,
+  styles,
+  onPress,
+}: {
+  transaction: Transaction;
+  colors: ThemeColors;
+  styles: ReturnType<typeof createStyles>;
+  onPress: () => void;
+}) {
+  const amountColor = getTransactionAmountColor(transaction.type, colors);
+  const prefix = getTransactionPrefix(transaction.type);
+
+  return (
+    <Pressable onPress={onPress} style={styles.transactionRow}>
+      <View style={styles.transactionIconBox}>
+        <Ionicons
+          name={getTransactionIcon(transaction.type) as any}
+          size={19}
+          color={amountColor}
+        />
+      </View>
+
+      <View style={styles.transactionTextBox}>
+        <AppText variant="body" style={styles.transactionTitle} numberOfLines={1}>
+          {transaction.title}
+        </AppText>
+
+        <AppText variant="caption" muted numberOfLines={1}>
+          {getTransactionTypeLabel(transaction.type)} • {transaction.accountName} •{' '}
+          {new Date(transaction.date).toLocaleDateString('id-ID')}
+        </AppText>
+      </View>
+
+      <View style={styles.transactionAmountBox}>
+        <AppText
+          variant="body"
+          style={[styles.transactionAmount, { color: amountColor }]}
+          numberOfLines={1}
+        >
+          {prefix}
+          {formatCompactCurrency(transaction.amount, transaction.currency)}
+        </AppText>
+
+        <Ionicons name="chevron-forward" size={15} color={colors.textMuted} />
+      </View>
+    </Pressable>
+  );
+}
+
 function TradingAccountReportRow({
   report,
   defaultCurrency,
   styles,
+  colors,
+  onPress,
 }: {
   report: TradingAccountReport;
   defaultCurrency: Currency;
   styles: ReturnType<typeof createStyles>;
+  colors: ThemeColors;
+  onPress: () => void;
 }) {
   const pnlPositive = report.convertedNetProfitLoss >= 0;
 
   return (
-    <View style={styles.tradingAccountRow}>
+    <Pressable onPress={onPress} style={styles.tradingAccountRow}>
       <View style={styles.tradingAccountTop}>
         <View style={styles.tradingAccountNameBox}>
           <AppText variant="body" style={styles.tradingAccountName} numberOfLines={1}>
@@ -1613,7 +1972,14 @@ function TradingAccountReportRow({
           </AppText>
         </View>
       </View>
-    </View>
+      <View style={styles.tradingAccountOpenHint}>
+        <AppText variant="caption" muted>
+          Tap to open account detail
+        </AppText>
+
+        <Ionicons name="chevron-forward" size={15} color={colors.textMuted} />
+      </View>
+    </Pressable>
   );
 }
 
@@ -1989,6 +2355,60 @@ function createStyles(colors: ThemeColors) {
     fontWeight: '900',
     textAlign: 'center',
   },
+  reportControlCard: {
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 24,
+    padding: 16,
+    marginBottom: 16,
+  },
+  reportControlHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 12,
+    alignItems: 'flex-start',
+  },
+  reportControlTextBox: {
+    flex: 1,
+    minWidth: 0,
+  },
+  reportControlTitle: {
+    marginTop: 4,
+  },
+  reportControlDescription: {
+    marginTop: 5,
+    lineHeight: 18,
+  },
+  reportSearchButton: {
+    width: 42,
+    height: 42,
+    borderRadius: 16,
+    backgroundColor: colors.surfaceSoft,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  reportOverviewGrid: {
+    marginTop: 14,
+    flexDirection: 'row',
+    gap: 10,
+  },
+  reportOverviewItem: {
+    flex: 1,
+    minHeight: 64,
+    borderRadius: 16,
+    backgroundColor: colors.surfaceSoft,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: 10,
+    justifyContent: 'center',
+  },
+  reportOverviewValue: {
+    marginTop: 5,
+    color: colors.text,
+  },
   heroCard: {
     backgroundColor: colors.surface,
     borderWidth: 1,
@@ -2043,6 +2463,126 @@ function createStyles(colors: ThemeColors) {
     justifyContent: 'space-between',
     gap: 12,
   },
+  sectionActionButton: {
+    minHeight: 34,
+    borderRadius: 999,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  sectionActionText: {
+    color: colors.text,
+    fontWeight: '900',
+  },
+  transactionListCard: {
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 24,
+    padding: 14,
+    gap: 10,
+    marginBottom: 14,
+  },
+  transactionRow: {
+    borderRadius: 19,
+    backgroundColor: colors.surfaceSoft,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 11,
+  },
+  transactionIconBox: {
+    width: 42,
+    height: 42,
+    borderRadius: 15,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  transactionTextBox: {
+    flex: 1,
+    minWidth: 0,
+  },
+  transactionTitle: {
+    color: colors.text,
+    fontWeight: '900',
+  },
+  transactionAmountBox: {
+    alignItems: 'flex-end',
+    gap: 4,
+    maxWidth: 132,
+  },
+  transactionAmount: {
+    fontWeight: '900',
+    textAlign: 'right',
+  },
+  tradingFilterCard: {
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 22,
+    padding: 14,
+    gap: 10,
+    marginBottom: 14,
+  },
+  tradingFilterLabel: {
+    fontWeight: '900',
+  },
+  tradingFilterRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  tradingFilterChip: {
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surfaceSoft,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    maxWidth: 180,
+  },
+  tradingFilterChipActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  tradingFilterChipText: {
+    color: colors.textMuted,
+    fontWeight: '900',
+  },
+  tradingFilterChipTextActive: {
+    color: colors.black,
+  },
+  tradingWarningCard: {
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.expense,
+    borderRadius: 22,
+    padding: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 11,
+    marginBottom: 14,
+  },
+  tradingWarningTextBox: {
+    flex: 1,
+    minWidth: 0,
+  },
+  tradingWarningTitle: {
+    color: colors.expense,
+    fontWeight: '900',
+  },
+  tradingWarningDescription: {
+    marginTop: 3,
+    lineHeight: 18,
+  },
   tradingHeroCard: {
     backgroundColor: colors.surface,
     borderWidth: 1,
@@ -2087,6 +2627,16 @@ function createStyles(colors: ThemeColors) {
     borderRadius: 22,
     padding: 14,
     gap: 9,
+  },
+  tradingInsightHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 2,
+  },
+  tradingInsightTitle: {
+    color: colors.text,
+    fontWeight: '900',
   },
   tradingInsightRow: {
     flexDirection: 'row',
@@ -2136,6 +2686,14 @@ function createStyles(colors: ThemeColors) {
   tradingAccountMetrics: {
     flexDirection: 'row',
     gap: 8,
+  },
+  tradingAccountOpenHint: {
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    paddingTop: 9,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
   tradingAccountMetric: {
     flex: 1,

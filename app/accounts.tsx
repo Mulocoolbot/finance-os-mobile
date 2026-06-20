@@ -85,30 +85,35 @@ function getAccountSummary(
   };
 }
 function buildAccountGroups(accounts: Account[]): AccountGroup[] {
+  const activeAccounts = accounts.filter((account) => account.isActive);
+  const archivedAccounts = accounts.filter((account) => !account.isActive);
+
   return [
     {
       key: 'cash-bank',
       title: 'Cash & Bank',
       description: 'Cash, bank accounts, and main money sources.',
-      accounts: accounts.filter((account) => account.type === 'cash' || account.type === 'bank'),
+      accounts: activeAccounts.filter(
+        (account) => account.type === 'cash' || account.type === 'bank'
+      ),
     },
     {
       key: 'wallets',
       title: 'E-Wallets',
       description: 'Digital wallets and payment accounts.',
-      accounts: accounts.filter((account) => account.type === 'e_wallet'),
+      accounts: activeAccounts.filter((account) => account.type === 'e_wallet'),
     },
     {
       key: 'savings',
       title: 'Savings',
       description: 'Sub-wallets connected to saving goals.',
-      accounts: accounts.filter((account) => account.type === 'saving'),
+      accounts: activeAccounts.filter((account) => account.type === 'saving'),
     },
     {
       key: 'investments',
       title: 'Investments',
       description: 'Broker and crypto wallet balances.',
-      accounts: accounts.filter(
+      accounts: activeAccounts.filter(
         (account) => account.type === 'broker' || account.type === 'crypto_wallet'
       ),
     },
@@ -116,7 +121,13 @@ function buildAccountGroups(accounts: Account[]): AccountGroup[] {
       key: 'custom',
       title: 'Custom',
       description: 'Other custom account types.',
-      accounts: accounts.filter((account) => account.type === 'custom'),
+      accounts: activeAccounts.filter((account) => account.type === 'custom'),
+    },
+    {
+      key: 'archived',
+      title: 'Archived Accounts',
+      description: 'Inactive accounts kept to preserve historical records.',
+      accounts: archivedAccounts,
     },
   ].filter((group) => group.accounts.length > 0);
 }
@@ -286,7 +297,7 @@ export default function AccountsScreen() {
                     <Ionicons name="create-outline" size={15} color={colors.text} />
 
                     <AppText variant="caption" style={styles.accountEditActionText}>
-                      Edit Account
+                      Manage Account
                     </AppText>
                   </Pressable>
                 </View>

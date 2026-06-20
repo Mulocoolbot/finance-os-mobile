@@ -9,6 +9,13 @@ export type AccountType =
   | 'saving'
   | 'custom';
 
+export type CryptoWalletKind =
+  | 'web3'
+  | 'cex'
+  | 'hardware'
+  | 'custodial'
+  | 'other';
+
 export type TransactionType =
   | 'income'
   | 'expense'
@@ -51,6 +58,10 @@ export type Account = {
   balance: number;
   icon?: string;
   color?: string;
+  walletKind?: CryptoWalletKind;
+  walletNetwork?: string;
+  walletAddress?: string;
+  supportedCryptoSymbols?: string[];
   isActive: boolean;
   createdAt?: string;
   updatedAt?: string;

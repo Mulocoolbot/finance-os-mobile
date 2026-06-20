@@ -158,7 +158,7 @@ export default function SettingsScreen() {
           <AppText variant="subtitle">App Configuration</AppText>
 
           <AppText variant="body" muted style={styles.heroDescription}>
-            Manage appearance, currency base, exchange rates, backup tools, and finance preferences.
+            Manage appearance, currency base, exchange-rate audit, navigation, backup tools, and finance preferences.
           </AppText>
         </View>
       </View>
@@ -453,23 +453,96 @@ export default function SettingsScreen() {
       </View>
 
       <View style={styles.sectionHeader}>
-        <AppText variant="subtitle">App</AppText>
+        <AppText variant="subtitle">Navigation Hub</AppText>
 
         <AppText variant="caption" muted>
-          Tools
+          Active modules
         </AppText>
       </View>
 
       <View style={styles.list}>
         <SettingRow
+          title="Accounts"
+          description="Manage active and archived accounts safely."
+          icon="wallet-outline"
+          value="Open"
+          colors={colors}
+          onPress={() => router.push('/accounts')}
+        />
+
+        <SettingRow
+          title="Savings"
+          description="Saving goals, deposit, withdrawal, edit, and archive flow."
+          icon="sparkles-outline"
+          value="Open"
+          colors={colors}
+          onPress={() => router.push('/savings')}
+        />
+
+        <SettingRow
+          title="Budget"
+          description="Active and archived budget trackers."
+          icon="speedometer-outline"
+          value="Open"
+          colors={colors}
+          onPress={() => router.push('/budget')}
+        />
+
+        <SettingRow
           title="Categories"
           description="Manage custom income and expense categories."
           icon="pricetags-outline"
-          value="Manage"
+          value="Open"
           colors={colors}
           onPress={() => router.push('/categories')}
         />
 
+        <SettingRow
+          title="Reports"
+          description="Cashflow, transaction, investment, crypto, and trading reports."
+          icon="bar-chart-outline"
+          value="Open"
+          colors={colors}
+          onPress={() => router.push('/reports')}
+        />
+
+        <SettingRow
+          title="Advanced Search"
+          description="Search and filter transactions by keyword, type, account, category, period, and amount."
+          icon="search-outline"
+          value="Open"
+          colors={colors}
+          onPress={() => router.push('/advanced-search')}
+        />
+
+        <SettingRow
+          title="Crypto Wallets"
+          description="Save Web3/CEX wallet profiles using crypto assets returned by API/provider."
+          icon="logo-bitcoin"
+          value="Open"
+          colors={colors}
+          onPress={() => router.push('/crypto-wallets')}
+        />
+
+        <SettingRow
+          title="Journal"
+          description="Trading workflow, account journal, and trading plan."
+          icon="book-outline"
+          value="Open"
+          colors={colors}
+          onPress={() => router.push('/journal')}
+        />
+      </View>
+
+      <View style={styles.sectionHeader}>
+        <AppText variant="subtitle">Data Safety</AppText>
+
+        <AppText variant="caption" muted>
+          Backup & audit
+        </AppText>
+      </View>
+
+      <View style={styles.list}>
         <SettingRow
           title="Backup & Restore"
           description="Export and import local finance data as JSON."

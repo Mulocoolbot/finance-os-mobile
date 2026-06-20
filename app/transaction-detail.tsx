@@ -6,31 +6,10 @@ import { Screen } from '../src/components/ui/Screen';
 import { ThemeColors } from '../src/constants/colors';
 import { useThemeColors } from '../src/hooks/useThemeColors';
 import { useFinanceStore } from '../src/stores/useFinanceStore';
-import { Account, Currency, Transaction, TransactionType } from '../src/types/finance';
+import { Transaction } from '../src/types/finance';
 import { formatCurrency } from '../src/utils/currency';
 
-function getTransactionTone(colors: ThemeColors, type: TransactionType) {
-  if (type === 'income') return colors.income;
-  if (type === 'expense') return colors.expense;
-  if (type === 'saving_deposit' || type === 'saving_withdrawal') return colors.saving;
-  if (type === 'investment_buy' || type === 'investment_sell') return colors.investment;
-
-  return colors.transfer;
-}
-
-function getTransactionIcon(type: TransactionType) {
-  if (type === 'income') return 'arrow-down-outline';
-  if (type === 'expense') return 'arrow-up-outline';
-  if (type === 'transfer') return 'swap-horizontal-outline';
-  if (type === 'saving_deposit') return 'wallet-outline';
-  if (type === 'saving_withdrawal') return 'return-down-back-outline';
-  if (type === 'investment_buy') return 'trending-up-outline';
-  if (type === 'investment_sell') return 'cash-outline';
-
-  return 'receipt-outline';
-}
-
-function getTransactionLabel(type: TransactionType) {
+function getTransactionTypeLabel(type: Transaction['type']) {
   if (type === 'income') return 'Income';
   if (type === 'expense') return 'Expense';
   if (type === 'transfer') return 'Transfer';
@@ -39,440 +18,59 @@ function getTransactionLabel(type: TransactionType) {
   if (type === 'investment_buy') return 'Investment Buy';
   if (type === 'investment_sell') return 'Investment Sell';
 
-  return 'Adjustment';
+  return 'Transaction';
 }
 
-function getLongDateLabel(value: string) {
-  const date = new Date(value);
+function canEditDirectly(transaction: Transaction) {
+  return transaction.type === 'income' || transaction.type === 'expense';
+}
 
-  if (Number.isNaN(date.getTime())) {
-    return 'Invalid date';
+function getAmountColor(type: Transaction['type'], colors: ThemeColors) {
+  if (type === 'income' || type === 'saving_withdrawal' || type === 'investment_sell') {
+    return colors.income;
   }
 
-  return new Intl.DateTimeFormat('id-ID', {
-    day: '2-digit',
-    month: 'long',
-    year: 'numeric',
-  }).format(date);
+  if (type === 'expense' || type === 'saving_deposit' || type === 'investment_buy') {
+    return colors.expense;
+  }
+
+  return colors.text;
 }
 
-function isCryptoTransaction(transaction: Transaction) {
-  const noteText = transaction.note || '';
-  const titleText = transaction.title.toLowerCase();
+function getAmountPrefix(type: Transaction['type']) {
+  if (type === 'income' || type === 'saving_withdrawal' || type === 'investment_sell') {
+    return '+';
+  }
 
-  return (
-    transaction.categoryName === 'Crypto Income' ||
-    transaction.categoryName === 'Crypto Payment' ||
-    titleText.startsWith('crypto income') ||
-    titleText.startsWith('crypto payment') ||
-    noteText.includes('Crypto qty:') ||
-    /[0-9.]+\s+[A-Z0-9]+\s+@\s+[0-9.]+\s+[A-Z]{3}/i.test(noteText)
-  );
-}
-
-function canEditNormalTransaction(transaction: Transaction) {
-  return (
-    (transaction.type === 'income' || transaction.type === 'expense') &&
-    !isCryptoTransaction(transaction)
-  );
-}
-
-function isGeneratedTransaction(transaction: Transaction) {
-  return !canEditNormalTransaction(transaction);
-}
-
-function getSignedAmountPrefix(type: TransactionType) {
-  if (type === 'income') return '+';
-  if (type === 'expense') return '-';
-  if (type === 'saving_deposit') return '-';
-  if (type === 'saving_withdrawal') return '+';
-  if (type === 'investment_buy') return '';
-  if (type === 'investment_sell') return '+';
+  if (type === 'expense' || type === 'saving_deposit' || type === 'investment_buy') {
+    return '-';
+  }
 
   return '';
-}
-
-function getGeneratedModuleName(type: TransactionType) {
-  if (type === 'transfer') return 'Transfer Module';
-  if (type === 'saving_deposit' || type === 'saving_withdrawal') return 'Saving Module';
-  if (type === 'investment_buy' || type === 'investment_sell') return 'Investment Module';
-  if (type === 'adjustment') return 'Adjustment Module';
-
-  return 'Transaction Module';
-}
-
-function getGeneratedProtectionText(type: TransactionType) {
-  if (type === 'transfer') {
-    return 'Transfer transactions are managed by Transfer logic because they affect two accounts at once.';
-  }
-
-  if (type === 'saving_deposit' || type === 'saving_withdrawal') {
-    return 'Saving transactions are managed by Saving logic because they affect saving goal progress and linked account balance.';
-  }
-
-  if (type === 'investment_buy' || type === 'investment_sell') {
-    return 'Investment transactions are managed by Investment logic because they affect holdings, orders, and portfolio value.';
-  }
-
-  return 'This transaction is generated by another module and is protected from direct editing.';
-}
-
-function findAccountName(accounts: Account[], accountId?: string) {
-  if (!accountId) {
-    return '';
-  }
-
-  return accounts.find((account) => account.id === accountId)?.name || '';
-}
-
-function getTransferFlow(transaction: Transaction, accounts: Account[]) {
-  const sourceName = findAccountName(accounts, transaction.fromAccountId);
-  const destinationName = findAccountName(accounts, transaction.toAccountId);
-
-  if (sourceName || destinationName) {
-    return `${sourceName || 'Source account'} → ${destinationName || 'Destination account'}`;
-  }
-
-  return transaction.accountName || 'Transfer flow';
-}
-
-function getSavingFlow(transaction: Transaction, accounts: Account[]) {
-  const sourceName = findAccountName(accounts, transaction.fromAccountId);
-  const destinationName = findAccountName(accounts, transaction.toAccountId);
-
-  if (transaction.type === 'saving_deposit') {
-    return `${sourceName || 'Source account'} → ${destinationName || 'Saving account'}`;
-  }
-
-  if (transaction.type === 'saving_withdrawal') {
-    return `${sourceName || 'Saving account'} → ${destinationName || 'Destination account'}`;
-  }
-
-  return transaction.accountName || 'Saving flow';
-}
-
-function parseInvestmentMeta(transaction: Transaction) {
-  const noteText = transaction.note || '';
-  const match = noteText.match(
-    /(Bought|Sold)\s+([0-9.,]+)\s+([A-Z0-9.-]+)\s+@\s+([0-9.,]+)\s+([A-Z]{3})/i
-  );
-  const titleMatch = transaction.title.match(/(?:Buy|Sell)\s+([A-Z0-9.-]+)/i);
-
-  if (!match) {
-    return {
-      action: transaction.type === 'investment_sell' ? 'Sold' : 'Bought',
-      quantity: '',
-      symbol: titleMatch?.[1] || '',
-      price: '',
-      currency: transaction.currency,
-    };
-  }
-
-  return {
-    action: match[1],
-    quantity: match[2],
-    symbol: match[3],
-    price: match[4],
-    currency: match[5] as Currency,
-  };
-}
-
-function getModuleSummary(transaction: Transaction, accounts: Account[]) {
-  if (transaction.type === 'transfer') {
-    return {
-      title: 'Transfer flow',
-      subtitle: getTransferFlow(transaction, accounts),
-      icon: 'swap-horizontal-outline',
-    };
-  }
-
-  if (transaction.type === 'saving_deposit' || transaction.type === 'saving_withdrawal') {
-    return {
-      title:
-        transaction.type === 'saving_deposit'
-          ? 'Saving deposit flow'
-          : 'Saving withdrawal flow',
-      subtitle: getSavingFlow(transaction, accounts),
-      icon: 'wallet-outline',
-    };
-  }
-
-  if (transaction.type === 'investment_buy' || transaction.type === 'investment_sell') {
-    const investmentMeta = parseInvestmentMeta(transaction);
-    const detailParts = [
-      investmentMeta.action,
-      investmentMeta.quantity && investmentMeta.symbol
-        ? `${investmentMeta.quantity} ${investmentMeta.symbol}`
-        : investmentMeta.symbol,
-      investmentMeta.price
-        ? `@ ${investmentMeta.price} ${investmentMeta.currency}`
-        : '',
-    ].filter(Boolean);
-
-    return {
-      title: 'Investment order',
-      subtitle: detailParts.join(' '),
-      icon: transaction.type === 'investment_buy' ? 'trending-up-outline' : 'cash-outline',
-    };
-  }
-
-  if (transaction.type === 'adjustment') {
-    return {
-      title: 'Balance adjustment',
-      subtitle: transaction.accountName || 'Adjustment transaction',
-      icon: 'options-outline',
-    };
-  }
-
-  return null;
-}
-
-function InfoRow({
-  label,
-  value,
-  colors,
-}: {
-  label: string;
-  value: string;
-  colors: ThemeColors;
-}) {
-  const styles = createStyles(colors);
-
-  return (
-    <View style={styles.infoRow}>
-      <AppText variant="caption" muted style={styles.infoLabel}>
-        {label}
-      </AppText>
-
-      <AppText variant="body" style={styles.infoValue} numberOfLines={3}>
-        {value || '-'}
-      </AppText>
-    </View>
-  );
-}
-
-function ModuleSummaryCard({
-  transaction,
-  accounts,
-  colors,
-}: {
-  transaction: Transaction;
-  accounts: Account[];
-  colors: ThemeColors;
-}) {
-  const styles = createStyles(colors);
-  const summary = getModuleSummary(transaction, accounts);
-
-  if (!summary) {
-    return null;
-  }
-
-  const tone = getTransactionTone(colors, transaction.type);
-
-  return (
-    <View style={styles.summaryCard}>
-      <View style={[styles.summaryIcon, { borderColor: tone }]}>
-        <Ionicons name={summary.icon as any} size={21} color={tone} />
-      </View>
-
-      <View style={styles.summaryTextBox}>
-        <AppText variant="caption" muted>
-          {summary.title}
-        </AppText>
-
-        <AppText variant="body" style={styles.summaryValue} numberOfLines={2}>
-          {summary.subtitle || '-'}
-        </AppText>
-      </View>
-    </View>
-  );
-}
-
-function ModuleInfoCard({
-  transaction,
-  colors,
-}: {
-  transaction: Transaction;
-  colors: ThemeColors;
-}) {
-  const styles = createStyles(colors);
-
-  if (!isGeneratedTransaction(transaction)) {
-    return null;
-  }
-
-  const tone = getTransactionTone(colors, transaction.type);
-
-  return (
-    <View style={[styles.moduleCard, { borderColor: tone }]}>
-      <View style={[styles.moduleIcon, { backgroundColor: tone }]}>
-        <Ionicons name="shield-checkmark-outline" size={19} color={colors.black} />
-      </View>
-
-      <View style={styles.moduleTextBox}>
-        <AppText variant="body" style={styles.moduleTitle}>
-          Protected by {getGeneratedModuleName(transaction.type)}
-        </AppText>
-
-        <AppText variant="caption" muted style={styles.moduleDescription}>
-          {getGeneratedProtectionText(transaction.type)}
-        </AppText>
-      </View>
-    </View>
-  );
-}
-
-function getModuleAction(transaction: Transaction) {
-  if (transaction.type === 'investment_buy' || transaction.type === 'investment_sell') {
-    return {
-      label: 'Open Investments',
-      helper: 'Review holdings, order history, and portfolio performance.',
-      icon: 'trending-up-outline',
-      route: '/investments',
-    };
-  }
-
-  if (transaction.type === 'saving_deposit' || transaction.type === 'saving_withdrawal') {
-    return {
-      label: 'Open Savings',
-      helper: 'Review saving goals, deposits, and withdrawals.',
-      icon: 'wallet-outline',
-      route: '/savings',
-    };
-  }
-
-  if (transaction.type === 'transfer') {
-    return {
-      label: 'Open Accounts',
-      helper: 'Review source and destination account balances.',
-      icon: 'swap-horizontal-outline',
-      route: '/accounts',
-    };
-  }
-
-  if (transaction.type === 'adjustment') {
-    return {
-      label: 'Open Accounts',
-      helper: 'Review account balance after this adjustment.',
-      icon: 'options-outline',
-      route: '/accounts',
-    };
-  }
-
-  return null;
-}
-
-function ModuleActionCard({
-  transaction,
-  colors,
-}: {
-  transaction: Transaction;
-  colors: ThemeColors;
-}) {
-  const styles = createStyles(colors);
-  const action = getModuleAction(transaction);
-
-  if (!action) {
-    return null;
-  }
-
-  const tone = getTransactionTone(colors, transaction.type);
-
-  return (
-    <View style={styles.routeCard}>
-      <View style={styles.routeHeader}>
-        <View style={[styles.routeIcon, { borderColor: tone }]}>
-          <Ionicons name={action.icon as any} size={20} color={tone} />
-        </View>
-
-        <View style={styles.routeTextBox}>
-          <AppText variant="caption" muted>
-            Module shortcut
-          </AppText>
-
-          <AppText variant="body" style={styles.routeTitle}>
-            {action.label}
-          </AppText>
-
-          <AppText variant="caption" muted style={styles.routeHelper}>
-            {action.helper}
-          </AppText>
-        </View>
-      </View>
-
-      <Pressable onPress={() => router.push(action.route as any)} style={styles.routeButton}>
-        <AppText variant="body" style={styles.routeButtonText}>
-          {action.label}
-        </AppText>
-
-        <Ionicons name="arrow-forward-outline" size={18} color={colors.black} />
-      </Pressable>
-    </View>
-  );
 }
 
 export default function TransactionDetailScreen() {
   const colors = useThemeColors();
   const styles = createStyles(colors);
   const params = useLocalSearchParams<{ transactionId?: string }>();
+  const transactionId =
+    typeof params.transactionId === 'string' ? params.transactionId : '';
 
-  const accounts = useFinanceStore((state) => state.accounts);
-  const transactions = useFinanceStore((state) => state.transactions);
+  const transaction = useFinanceStore((state) =>
+    state.transactions.find((item) => item.id === transactionId)
+  );
   const deleteTransaction = useFinanceStore((state) => state.deleteTransaction);
 
-  const transaction = transactions.find((item) => item.id === params.transactionId);
-
-  if (!transaction) {
-    return (
-      <Screen>
-        <View style={styles.header}>
-          <Pressable onPress={() => router.back()} style={styles.backButton}>
-            <Ionicons name="chevron-back-outline" size={22} color={colors.text} />
-          </Pressable>
-
-          <View style={styles.headerText}>
-            <AppText variant="caption" muted>
-              Transaction Detail
-            </AppText>
-
-            <AppText variant="title">Not Found</AppText>
-          </View>
-        </View>
-
-        <View style={styles.emptyCard}>
-          <Ionicons name="alert-circle-outline" size={30} color={colors.textMuted} />
-
-          <AppText variant="body" muted style={styles.emptyText}>
-            This transaction may have been deleted.
-          </AppText>
-        </View>
-      </Screen>
-    );
-  }
-
-  if (isCryptoTransaction(transaction)) {
-    router.replace(`/crypto-transaction-detail?transactionId=${transaction.id}` as any);
-    return null;
-  }
-
-  const editable = canEditNormalTransaction(transaction);
-  const generated = isGeneratedTransaction(transaction);
-  const tone = getTransactionTone(colors, transaction.type);
-  const prefix = getSignedAmountPrefix(transaction.type);
-  const transactionCurrency = (transaction.currency || 'IDR') as Currency;
-
   function handleDelete() {
-    if (!transaction || !editable) {
-      Alert.alert(
-        'Locked Transaction',
-        'This transaction cannot be deleted from the normal transaction detail.'
-      );
+    if (!transaction) {
       return;
     }
 
     Alert.alert(
-      'Delete transaction?',
-      'This will remove the transaction and rollback the related account balance. This action cannot be undone.',
+      'Delete Transaction',
+      canEditDirectly(transaction)
+        ? 'This will delete the transaction and roll back the account balance. Continue?'
+        : 'This transaction is managed by another module. Direct delete may be blocked for safety. Continue?',
       [
         {
           text: 'Cancel',
@@ -495,6 +93,29 @@ export default function TransactionDetailScreen() {
     );
   }
 
+  if (!transaction) {
+    return (
+      <Screen>
+        <View style={styles.emptyCard}>
+          <AppText variant="subtitle">Transaction not found</AppText>
+
+          <AppText variant="body" muted style={styles.emptyDescription}>
+            This transaction may have been deleted.
+          </AppText>
+
+          <Pressable onPress={() => router.back()} style={styles.primaryButton}>
+            <AppText variant="body" style={styles.primaryButtonText}>
+              Go Back
+            </AppText>
+          </Pressable>
+        </View>
+      </Screen>
+    );
+  }
+
+  const amountColor = getAmountColor(transaction.type, colors);
+  const editable = canEditDirectly(transaction);
+
   return (
     <Screen>
       <View style={styles.header}>
@@ -507,108 +128,107 @@ export default function TransactionDetailScreen() {
             Transaction Detail
           </AppText>
 
-          <AppText variant="title" numberOfLines={1}>
-            {transaction.title}
+          <AppText variant="title" style={styles.title}>
+            {getTransactionTypeLabel(transaction.type)}
           </AppText>
         </View>
       </View>
 
-      <View style={[styles.heroCard, { borderColor: tone }]}>
-        <View style={[styles.heroIcon, { borderColor: tone }]}>
-          <Ionicons name={getTransactionIcon(transaction.type) as any} size={26} color={tone} />
-        </View>
+      <View style={styles.heroCard}>
+        <AppText variant="caption" muted>
+          Amount
+        </AppText>
 
-        <View style={styles.heroTextBox}>
-          <AppText variant="caption" muted>
-            {getTransactionLabel(transaction.type)}
-          </AppText>
+        <AppText
+          variant="title"
+          style={[styles.amountValue, { color: amountColor }]}
+          numberOfLines={1}
+        >
+          {getAmountPrefix(transaction.type)}
+          {formatCurrency(transaction.amount, transaction.currency)}
+        </AppText>
 
-          <AppText variant="title" style={[styles.heroAmount, { color: tone }]} numberOfLines={1}>
-            {prefix}
-            {formatCurrency(transaction.amount, transactionCurrency)}
-          </AppText>
+        <AppText variant="body" style={styles.transactionTitle}>
+          {transaction.title}
+        </AppText>
 
-          <AppText variant="caption" muted style={styles.heroDate}>
-            {getLongDateLabel(transaction.date)}
-          </AppText>
-        </View>
+        <AppText variant="caption" muted style={styles.managedText}>
+          {editable
+            ? 'This transaction can be edited directly.'
+            : 'This transaction is managed by transfer/saving/investment/crypto flow.'}
+        </AppText>
       </View>
 
-      {generated ? (
-        <>
-          <ModuleSummaryCard transaction={transaction} accounts={accounts} colors={colors} />
-          <ModuleInfoCard transaction={transaction} colors={colors} />
-          <ModuleActionCard transaction={transaction} colors={colors} />
-        </>
-      ) : null}
-
-      <View style={styles.infoCard}>
-        <InfoRow label="Title" value={transaction.title} colors={colors} />
-        <InfoRow label="Type" value={getTransactionLabel(transaction.type)} colors={colors} />
-        <InfoRow label="Category" value={transaction.categoryName || '-'} colors={colors} />
-
-        {transaction.type === 'transfer' ? (
-          <InfoRow label="Transfer Flow" value={getTransferFlow(transaction, accounts)} colors={colors} />
-        ) : null}
-
-        {transaction.type === 'saving_deposit' || transaction.type === 'saving_withdrawal' ? (
-          <InfoRow label="Saving Flow" value={getSavingFlow(transaction, accounts)} colors={colors} />
-        ) : null}
-
-        {transaction.type !== 'transfer' &&
-        transaction.type !== 'saving_deposit' &&
-        transaction.type !== 'saving_withdrawal' ? (
-          <InfoRow label="Account" value={transaction.accountName || '-'} colors={colors} />
-        ) : null}
-
-        {transaction.type === 'investment_buy' || transaction.type === 'investment_sell' ? (
-          <>
-            <InfoRow
-              label="Investment Detail"
-              value={getModuleSummary(transaction, accounts)?.subtitle || transaction.note || '-'}
-              colors={colors}
-            />
-          </>
-        ) : null}
-
-        <InfoRow label="Date" value={getLongDateLabel(transaction.date)} colors={colors} />
-
+      <View style={styles.detailCard}>
+        <DetailRow label="Account" value={transaction.accountName} styles={styles} />
+        <DetailRow label="Category" value={transaction.categoryName || 'Uncategorized'} styles={styles} />
+        <DetailRow
+          label="Date"
+          value={new Date(transaction.date).toLocaleDateString('id-ID')}
+          styles={styles}
+        />
+        <DetailRow label="Type" value={getTransactionTypeLabel(transaction.type)} styles={styles} />
         {transaction.note ? (
-          <InfoRow label="Note" value={transaction.note} colors={colors} />
+          <DetailRow label="Note" value={transaction.note} styles={styles} multiline />
         ) : null}
       </View>
 
-      {editable ? (
-        <View style={styles.actionCard}>
+      <View style={styles.actionRow}>
+        {editable ? (
           <Pressable
-            onPress={() => router.push(`/edit-transaction?transactionId=${transaction.id}`)}
-            style={styles.editButton}
+            onPress={() =>
+              router.push({
+                pathname: '/edit-transaction',
+                params: { transactionId: transaction.id },
+              })
+            }
+            style={styles.primaryButton}
           >
             <Ionicons name="create-outline" size={18} color={colors.black} />
 
-            <AppText variant="body" style={styles.editButtonText}>
-              Edit Transaction
+            <AppText variant="body" style={styles.primaryButtonText}>
+              Edit
             </AppText>
           </Pressable>
+        ) : null}
 
-          <Pressable onPress={handleDelete} style={styles.deleteButton}>
-            <Ionicons name="trash-outline" size={18} color={colors.white} />
+        <Pressable onPress={handleDelete} style={styles.deleteButton}>
+          <Ionicons name="trash-outline" size={18} color={colors.expense} />
 
-            <AppText variant="body" style={styles.deleteButtonText}>
-              Delete Transaction
-            </AppText>
-          </Pressable>
-        </View>
-      ) : (
-        <View style={styles.lockedCard}>
-          <Ionicons name="lock-closed-outline" size={20} color={colors.textMuted} />
-
-          <AppText variant="caption" muted style={styles.lockedText}>
-            This transaction is view-only here. Manage it from its original module.
+          <AppText variant="body" style={styles.deleteButtonText}>
+            Delete
           </AppText>
-        </View>
-      )}
+        </Pressable>
+      </View>
     </Screen>
+  );
+}
+
+function DetailRow({
+  label,
+  value,
+  styles,
+  multiline,
+}: {
+  label: string;
+  value: string;
+  styles: ReturnType<typeof createStyles>;
+  multiline?: boolean;
+}) {
+  return (
+    <View style={styles.detailRow}>
+      <AppText variant="caption" muted>
+        {label}
+      </AppText>
+
+      <AppText
+        variant="body"
+        style={styles.detailValue}
+        numberOfLines={multiline ? undefined : 1}
+      >
+        {value}
+      </AppText>
+    </View>
   );
 }
 
@@ -634,175 +254,55 @@ function createStyles(colors: ThemeColors) {
       flex: 1,
       minWidth: 0,
     },
+    title: {
+      marginTop: 4,
+    },
     heroCard: {
       backgroundColor: colors.surface,
       borderWidth: 1,
-      borderRadius: 26,
-      padding: 16,
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 14,
-      marginBottom: 16,
-    },
-    heroIcon: {
-      width: 58,
-      height: 58,
-      borderRadius: 21,
-      backgroundColor: colors.surfaceSoft,
-      borderWidth: 1,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    heroTextBox: {
-      flex: 1,
-      minWidth: 0,
-    },
-    heroAmount: {
-      marginTop: 5,
-      fontWeight: '900',
-    },
-    heroDate: {
-      marginTop: 5,
-      lineHeight: 18,
-    },
-    summaryCard: {
-      backgroundColor: colors.surface,
-      borderWidth: 1,
       borderColor: colors.border,
-      borderRadius: 24,
-      padding: 14,
-      flexDirection: 'row',
-      gap: 12,
+      borderRadius: 26,
+      padding: 18,
+      gap: 8,
       marginBottom: 14,
     },
-    summaryIcon: {
-      width: 44,
-      height: 44,
-      borderRadius: 17,
-      backgroundColor: colors.surfaceSoft,
-      borderWidth: 1,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    summaryTextBox: {
-      flex: 1,
-      minWidth: 0,
-    },
-    summaryValue: {
-      color: colors.text,
+    amountValue: {
       fontWeight: '900',
-      marginTop: 4,
-      lineHeight: 21,
     },
-    moduleCard: {
-      backgroundColor: colors.surface,
-      borderWidth: 1,
-      borderRadius: 24,
-      padding: 14,
-      flexDirection: 'row',
-      gap: 12,
-      marginBottom: 16,
-    },
-    moduleIcon: {
-      width: 42,
-      height: 42,
-      borderRadius: 16,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    moduleTextBox: {
-      flex: 1,
-      minWidth: 0,
-    },
-    moduleTitle: {
+    transactionTitle: {
       color: colors.text,
       fontWeight: '900',
     },
-    moduleDescription: {
-      marginTop: 5,
-      lineHeight: 19,
-    },
-    routeCard: {
-      backgroundColor: colors.surface,
-      borderWidth: 1,
-      borderColor: colors.border,
-      borderRadius: 24,
-      padding: 14,
-      gap: 14,
-      marginBottom: 16,
-    },
-    routeHeader: {
-      flexDirection: 'row',
-      gap: 12,
-    },
-    routeIcon: {
-      width: 44,
-      height: 44,
-      borderRadius: 17,
-      backgroundColor: colors.surfaceSoft,
-      borderWidth: 1,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    routeTextBox: {
-      flex: 1,
-      minWidth: 0,
-    },
-    routeTitle: {
-      color: colors.text,
-      fontWeight: '900',
-      marginTop: 4,
-    },
-    routeHelper: {
-      marginTop: 5,
+    managedText: {
       lineHeight: 18,
     },
-    routeButton: {
-      minHeight: 50,
-      borderRadius: 17,
-      backgroundColor: colors.primary,
-      alignItems: 'center',
-      justifyContent: 'center',
-      flexDirection: 'row',
-      gap: 8,
-      paddingHorizontal: 16,
-    },
-    routeButtonText: {
-      color: colors.black,
-      fontWeight: '900',
-    },
-    infoCard: {
+    detailCard: {
       backgroundColor: colors.surface,
       borderWidth: 1,
       borderColor: colors.border,
       borderRadius: 24,
-      padding: 16,
-      gap: 13,
-      marginBottom: 16,
-    },
-    infoRow: {
-      borderBottomWidth: 1,
-      borderBottomColor: colors.border,
-      paddingBottom: 12,
-      gap: 5,
-    },
-    infoLabel: {
-      fontWeight: '800',
-    },
-    infoValue: {
-      color: colors.text,
-      fontWeight: '900',
-      lineHeight: 21,
-    },
-    actionCard: {
-      backgroundColor: colors.surface,
-      borderWidth: 1,
-      borderColor: colors.border,
-      borderRadius: 24,
-      padding: 14,
+      padding: 15,
       gap: 12,
     },
-    editButton: {
+    detailRow: {
+      borderRadius: 16,
+      backgroundColor: colors.surfaceSoft,
+      borderWidth: 1,
+      borderColor: colors.border,
+      padding: 12,
+      gap: 5,
+    },
+    detailValue: {
+      color: colors.text,
+      fontWeight: '900',
+    },
+    actionRow: {
+      marginTop: 16,
+      flexDirection: 'row',
+      gap: 10,
+    },
+    primaryButton: {
+      flex: 1,
       minHeight: 54,
       borderRadius: 18,
       backgroundColor: colors.primary,
@@ -810,52 +310,38 @@ function createStyles(colors: ThemeColors) {
       justifyContent: 'center',
       flexDirection: 'row',
       gap: 8,
-      paddingHorizontal: 16,
     },
-    editButtonText: {
+    primaryButtonText: {
       color: colors.black,
       fontWeight: '900',
     },
     deleteButton: {
+      flex: 1,
       minHeight: 54,
       borderRadius: 18,
-      backgroundColor: colors.expense,
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.expense,
       alignItems: 'center',
       justifyContent: 'center',
       flexDirection: 'row',
       gap: 8,
-      paddingHorizontal: 16,
     },
     deleteButtonText: {
-      color: colors.white,
+      color: colors.expense,
       fontWeight: '900',
-    },
-    lockedCard: {
-      backgroundColor: colors.surfaceSoft,
-      borderWidth: 1,
-      borderColor: colors.border,
-      borderRadius: 20,
-      padding: 14,
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 10,
-    },
-    lockedText: {
-      flex: 1,
-      lineHeight: 18,
     },
     emptyCard: {
       backgroundColor: colors.surface,
       borderWidth: 1,
       borderColor: colors.border,
       borderRadius: 24,
-      padding: 22,
-      alignItems: 'center',
+      padding: 18,
     },
-    emptyText: {
-      marginTop: 10,
-      textAlign: 'center',
-      lineHeight: 21,
+    emptyDescription: {
+      marginTop: 8,
+      marginBottom: 16,
+      lineHeight: 22,
     },
   });
 }

@@ -16,22 +16,70 @@ type MenuItem = {
 
 const mainMenus: MenuItem[] = [
   {
+    title: 'Dashboard',
+    description: 'Back to net worth, quick actions, and recent activity.',
+    icon: 'home-outline',
+    route: '/',
+  },
+  {
     title: 'Accounts',
-    description: 'Manage cash, bank, wallet, saving, and investment accounts.',
+    description: 'Manage cash, bank, wallet, saving, archived, and investment accounts.',
     icon: 'wallet-outline',
     route: '/accounts',
   },
   {
     title: 'Savings',
-    description: 'Track saving goals and linked saving wallets.',
+    description: 'Saving goals, deposit flow, withdrawal flow, and linked saving wallets.',
     icon: 'sparkles-outline',
     route: '/savings',
   },
   {
+    title: 'Budget',
+    description: 'Active and archived budget trackers for category spending control.',
+    icon: 'speedometer-outline',
+    route: '/budget',
+  },
+  {
     title: 'Categories',
-    description: 'Customize income and expense categories.',
+    description: 'Edit, archive, and manage income/expense categories.',
     icon: 'pricetags-outline',
     route: '/categories',
+  },
+  {
+    title: 'Reports',
+    description: 'Cashflow, investment, crypto, trading, and transaction analysis.',
+    icon: 'bar-chart-outline',
+    route: '/reports',
+  },
+  {
+    title: 'Advanced Search',
+    description: 'Search and filter transactions by keyword, type, account, category, date, and amount.',
+    icon: 'search-outline',
+    route: '/advanced-search',
+  },
+  {
+    title: 'Journal',
+    description: 'Trading journal, trading plan, account detail, profit pool, and AI coach.',
+    icon: 'book-outline',
+    route: '/journal',
+  },
+  {
+    title: 'AI Coach',
+    description: 'Local trading performance summary with insights and next action plan.',
+    icon: 'sparkles-outline',
+    route: '/trading-ai-performance',
+  },
+  {
+    title: 'Profit Pool',
+    description: 'Split realized trading profit into reinvest, withdraw, reserve, and other pools.',
+    icon: 'pie-chart-outline',
+    route: '/trading-profit-pool',
+  },
+  {
+    title: 'Crypto Wallets',
+    description: 'Save Web3/CEX wallet profiles using crypto assets returned by API/provider.',
+    icon: 'logo-bitcoin',
+    route: '/crypto-wallets',
   },
   {
     title: 'Investments',
@@ -39,11 +87,14 @@ const mainMenus: MenuItem[] = [
     icon: 'trending-up-outline',
     route: '/investments',
   },
+];
+
+const systemMenus: MenuItem[] = [
   {
-    title: 'Journal',
-    description: 'Trading journal, account tracking, and MT4/MT5 integration roadmap.',
-    icon: 'book-outline',
-    route: '/journal',
+    title: 'Settings',
+    description: 'Theme, currency base, exchange-rate audit, and navigation hub.',
+    icon: 'settings-outline',
+    route: '/settings',
   },
   {
     title: 'Backup & Restore',
@@ -51,26 +102,38 @@ const mainMenus: MenuItem[] = [
     icon: 'shield-checkmark-outline',
     route: '/backup',
   },
-  {
-    title: 'Settings',
-    description: 'App preferences, theme, data tools, and finance configuration.',
-    icon: 'settings-outline',
-    route: '/settings',
-  },
 ];
 
 const upcomingMenus: MenuItem[] = [
   {
-    title: 'Trading Pool',
-    description: 'Future profit allocation module after Trading Journal is stable.',
-    icon: 'pie-chart-outline',
-    badge: 'Later',
+    title: 'Database + Auth',
+    description: 'Cloud database, email login, Google sign-in, and account-based sync.',
+    icon: 'cloud-outline',
+    badge: 'Planned',
   },
   {
-    title: 'Cloud Sync',
-    description: 'Sync data across devices with secure online storage.',
-    icon: 'cloud-outline',
-    badge: 'Soon',
+    title: 'Real AI API',
+    description: 'External AI summary through secure backend after auth/database.',
+    icon: 'sparkles-outline',
+    badge: 'Planned',
+  },
+  {
+    title: 'MetaTrader Link',
+    description: 'MT4/MT5 statement import or account sync preparation.',
+    icon: 'sync-outline',
+    badge: 'Planned',
+  },
+  {
+    title: 'Crypto Access',
+    description: 'Connect real crypto account or wallet through provider/API access.',
+    icon: 'logo-bitcoin',
+    badge: 'Planned',
+  },
+  {
+    title: 'Codebase Refactor',
+    description: 'Split large files, reduce duplication, and improve maintainability.',
+    icon: 'construct-outline',
+    badge: 'Later',
   },
 ];
 
@@ -101,14 +164,14 @@ export default function MoreScreen() {
           <AppText variant="subtitle">Control Center</AppText>
 
           <AppText variant="body" muted style={styles.heroDescription}>
-            Manage supporting modules, app preferences, backup tools, trading journal, and upcoming finance tools.
+            Open finished modules and see what is planned next: finance, budgets, reports, trading journal, AI coach, settings, and backup tools.
           </AppText>
         </View>
       </View>
 
       <View style={styles.sectionHeader}>
-        <AppText variant="subtitle">Manage</AppText>
-        <AppText variant="caption" muted>Active modules</AppText>
+        <AppText variant="subtitle">Finance Modules</AppText>
+        <AppText variant="caption" muted>Active</AppText>
       </View>
 
       <View style={styles.menuList}>
@@ -118,8 +181,19 @@ export default function MoreScreen() {
       </View>
 
       <View style={styles.sectionHeader}>
+        <AppText variant="subtitle">System</AppText>
+        <AppText variant="caption" muted>Control</AppText>
+      </View>
+
+      <View style={styles.menuList}>
+        {systemMenus.map((item) => (
+          <MenuCard key={item.title} item={item} colors={colors} />
+        ))}
+      </View>
+
+      <View style={styles.sectionHeader}>
         <AppText variant="subtitle">Coming Next</AppText>
-        <AppText variant="caption" muted>Planned modules</AppText>
+        <AppText variant="caption" muted>Planned</AppText>
       </View>
 
       <View style={styles.menuList}>

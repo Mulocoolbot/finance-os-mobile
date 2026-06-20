@@ -125,8 +125,8 @@ export default function EditBudgetScreen() {
     }
 
     Alert.alert(
-      'Delete Budget',
-      `Delete ${budget.name}? Spending transactions will stay safe, but this budget tracker will be removed.`,
+      'Archive Budget',
+      `Archive ${budget.name}? Spending transactions will stay safe, and this budget can be restored by saving it again.`,
       [
         {
           text: 'Cancel',
@@ -170,7 +170,7 @@ export default function EditBudgetScreen() {
           <Ionicons name="alert-circle-outline" size={28} color={colors.textMuted} />
 
           <AppText variant="body" muted style={styles.emptyText}>
-            This budget may have been deleted.
+            This budget may have been archived or deleted.
           </AppText>
         </View>
       </Screen>
@@ -407,14 +407,14 @@ export default function EditBudgetScreen() {
 
         <Pressable onPress={handleSave} style={styles.saveButton}>
           <AppText variant="body" style={styles.saveButtonText}>
-            Save Budget Changes
+            {budget.isActive ? 'Save Budget Changes' : 'Restore & Save Budget'}
           </AppText>
         </Pressable>
 
         <View style={styles.dangerCard}>
           <View style={styles.dangerTextBox}>
             <AppText variant="body" style={styles.dangerTitle}>
-              Delete Budget
+              Archive Budget
             </AppText>
 
             <AppText variant="caption" muted style={styles.dangerDescription}>

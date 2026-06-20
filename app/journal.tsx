@@ -98,11 +98,16 @@ export default function JournalScreen() {
   const colors = useThemeColors();
   const styles = createStyles(colors);
   const tradingAccounts = useFinanceStore((state) => state.tradingAccounts);
+  const tradingTrades = useFinanceStore((state) => state.tradingTrades);
+  const tradingPlans = useFinanceStore((state) => state.tradingPlans);
   const accounts = useFinanceStore((state) => state.accounts);
   const defaultCurrency = useFinanceStore((state) => state.defaultCurrency);
   const exchangeRates = useFinanceStore((state) => state.exchangeRates);
 
   const summary = getJournalSummary(tradingAccounts, defaultCurrency, exchangeRates);
+  const openTradeCount = tradingTrades.filter((trade) => trade.status === 'open').length;
+  const closedTradeCount = tradingTrades.filter((trade) => trade.status === 'closed').length;
+  const plannedAccountCount = new Set(tradingPlans.map((plan) => plan.tradingAccountId)).size;
 
   return (
     <Screen>
@@ -131,9 +136,124 @@ export default function JournalScreen() {
           <AppText variant="subtitle">Trading Journal</AppText>
 
           <AppText variant="body" muted style={styles.heroDescription}>
-            Track trading accounts, broker details, balance, equity, and trading performance before MT4/MT5 sync is added.
+            Manage the full trading workflow from one hub: accounts, trades, risk plan, cash flow, profit pool, and AI performance review.
           </AppText>
         </View>
+      </View>
+
+      <View style={styles.workspaceCard}>
+        <View style={styles.workspaceHeader}>
+          <View>
+            <AppText variant="caption" muted>
+              Trading Workspace
+            </AppText>
+
+            <AppText variant="subtitle" style={styles.workspaceTitle}>
+              Workflow overview
+            </AppText>
+          </View>
+
+          <View style={styles.workspaceBadge}>
+            <Ionicons name="pulse-outline" size={15} color={colors.text} />
+
+            <AppText variant="caption" style={styles.workspaceBadgeText}>
+              Active
+            </AppText>
+          </View>
+        </View>
+
+        <View style={styles.workspaceMetricRow}>
+          <View style={styles.workspaceMetric}>
+            <AppText variant="caption" muted>
+              Accounts
+            </AppText>
+
+            <AppText variant="subtitle" style={styles.workspaceMetricValue}>
+              {tradingAccounts.length}
+            </AppText>
+          </View>
+
+          <View style={styles.workspaceMetric}>
+            <AppText variant="caption" muted>
+              Open Trades
+            </AppText>
+
+            <AppText variant="subtitle" style={[styles.workspaceMetricValue, { color: openTradeCount > 0 ? colors.investment : colors.text }]}>
+              {openTradeCount}
+            </AppText>
+          </View>
+
+          <View style={styles.workspaceMetric}>
+            <AppText variant="caption" muted>
+              Closed
+            </AppText>
+
+            <AppText variant="subtitle" style={styles.workspaceMetricValue}>
+              {closedTradeCount}
+            </AppText>
+          </View>
+        </View>
+
+        <AppText variant="caption" muted style={styles.workspaceDescription}>
+          {plannedAccountCount} account{plannedAccountCount === 1 ? '' : 's'} already have a trading plan. Use AI Coach and Profit Pool after closing trades.
+        </AppText>
+      </View>
+
+      <View style={styles.sectionHeader}>
+        <AppText variant="subtitle">Trading Tools</AppText>
+        <AppText variant="caption" muted>
+          Core workflow
+        </AppText>
+      </View>
+
+      <View style={styles.workflowGrid}>
+        <JournalShortcut
+          icon="add-circle-outline"
+          label="Add Trade"
+          description="Record position"
+          onPress={() => router.push('/add-trading-trade' as any)}
+          colors={colors}
+        />
+
+        <JournalShortcut
+          icon="shield-checkmark-outline"
+          label="Trading Plan"
+          description="Risk rules"
+          onPress={() => router.push('/trading-plan' as any)}
+          colors={colors}
+        />
+
+        <JournalShortcut
+          icon="bar-chart-outline"
+          label="Reports"
+          description="Performance"
+          onPress={() => router.push('/reports' as any)}
+          colors={colors}
+        />
+
+        <JournalShortcut
+          icon="swap-horizontal-outline"
+          label="Cash Flow"
+          description="Deposit/withdraw"
+          onPress={() => router.push('/trading-cash-event' as any)}
+          colors={colors}
+        />
+
+        <JournalShortcut
+          icon="pie-chart-outline"
+          label="Profit Pool"
+          description="Split realized profit"
+          onPress={() => router.push('/trading-profit-pool' as any)}
+          colors={colors}
+        />
+
+        <JournalShortcut
+          icon="sparkles-outline"
+          label="AI Coach"
+          description="Performance summary"
+          onPress={() => router.push('/trading-ai-performance' as any)}
+          colors={colors}
+        />
       </View>
 
       <View style={styles.sectionHeader}>
@@ -210,9 +330,9 @@ export default function JournalScreen() {
       )}
 
       <View style={styles.sectionHeader}>
-        <AppText variant="subtitle">MT4/MT5 Integration Roadmap</AppText>
+        <AppText variant="subtitle">Trading Workflow Status</AppText>
         <AppText variant="caption" muted>
-          Later phase
+          Active
         </AppText>
       </View>
 
@@ -221,7 +341,7 @@ export default function JournalScreen() {
           <Ionicons name="checkmark-circle-outline" size={20} color={colors.income} />
 
           <AppText variant="body" style={styles.roadmapText}>
-            Phase 7B: manual trading account setup
+            Trading accounts, cash flow, and trade history are active
           </AppText>
         </View>
 
@@ -229,7 +349,23 @@ export default function JournalScreen() {
           <Ionicons name="document-text-outline" size={20} color={colors.textMuted} />
 
           <AppText variant="body" muted style={styles.roadmapText}>
-            Next: manual trade history and journal notes
+            Trading plan, plan compliance, and AI summary are active
+          </AppText>
+        </View>
+
+        <View style={styles.roadmapRow}>
+          <Ionicons name="pie-chart-outline" size={20} color={colors.textMuted} />
+
+          <AppText variant="body" muted style={styles.roadmapText}>
+            Profit pool planner is active inside Journal
+          </AppText>
+        </View>
+
+        <View style={styles.roadmapRow}>
+          <Ionicons name="sparkles-outline" size={20} color={colors.textMuted} />
+
+          <AppText variant="body" muted style={styles.roadmapText}>
+            AI performance coach is active inside Journal
           </AppText>
         </View>
 
@@ -237,11 +373,45 @@ export default function JournalScreen() {
           <Ionicons name="sync-outline" size={20} color={colors.textMuted} />
 
           <AppText variant="body" muted style={styles.roadmapText}>
-            Later: MT4/MT5 statement import or connector sync
+            Later: MT4/MT5 statement import or cloud sync
           </AppText>
         </View>
       </View>
     </Screen>
+  );
+}
+
+function JournalShortcut({
+  icon,
+  label,
+  description,
+  onPress,
+  colors,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  label: string;
+  description: string;
+  onPress: () => void;
+  colors: ThemeColors;
+}) {
+  const styles = createStyles(colors);
+
+  return (
+    <Pressable onPress={onPress} style={styles.workflowCard}>
+      <View style={styles.workflowIcon}>
+        <Ionicons name={icon} size={19} color={colors.text} />
+      </View>
+
+      <View style={styles.workflowTextBox}>
+        <AppText variant="caption" style={styles.workflowLabel} numberOfLines={1}>
+          {label}
+        </AppText>
+
+        <AppText variant="caption" muted style={styles.workflowDescription} numberOfLines={1}>
+          {description}
+        </AppText>
+      </View>
+    </Pressable>
   );
 }
 
@@ -463,6 +633,103 @@ function createStyles(colors: ThemeColors) {
       marginTop: 7,
       lineHeight: 21,
     },
+    workspaceCard: {
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 24,
+      padding: 16,
+      marginTop: 2,
+      marginBottom: 4,
+    },
+    workspaceHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'flex-start',
+      gap: 12,
+    },
+    workspaceTitle: {
+      marginTop: 4,
+    },
+    workspaceBadge: {
+      minHeight: 32,
+      borderRadius: 999,
+      backgroundColor: colors.surfaceSoft,
+      borderWidth: 1,
+      borderColor: colors.border,
+      paddingHorizontal: 10,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+    },
+    workspaceBadgeText: {
+      color: colors.text,
+      fontWeight: '900',
+    },
+    workspaceMetricRow: {
+      marginTop: 14,
+      flexDirection: 'row',
+      gap: 10,
+    },
+    workspaceMetric: {
+      flex: 1,
+      minHeight: 66,
+      borderRadius: 16,
+      backgroundColor: colors.surfaceSoft,
+      borderWidth: 1,
+      borderColor: colors.border,
+      padding: 10,
+      justifyContent: 'center',
+    },
+    workspaceMetricValue: {
+      marginTop: 5,
+      color: colors.text,
+    },
+    workspaceDescription: {
+      marginTop: 12,
+      lineHeight: 19,
+    },
+    workflowGrid: {
+      marginTop: 0,
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 10,
+    },
+    workflowCard: {
+      flexGrow: 1,
+      flexBasis: '47%',
+      minHeight: 72,
+      borderRadius: 20,
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+      padding: 12,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+    },
+    workflowIcon: {
+      width: 38,
+      height: 38,
+      borderRadius: 15,
+      backgroundColor: colors.surfaceSoft,
+      borderWidth: 1,
+      borderColor: colors.border,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    workflowTextBox: {
+      flex: 1,
+      minWidth: 0,
+    },
+    workflowLabel: {
+      color: colors.text,
+      fontWeight: '900',
+    },
+    workflowDescription: {
+      marginTop: 3,
+      lineHeight: 16,
+    },
     sectionHeader: {
       marginTop: 10,
       marginBottom: 12,
@@ -637,7 +904,8 @@ function createStyles(colors: ThemeColors) {
     openJournalButtonText: {
       color: colors.black,
       fontWeight: '900',
-    },    editTradingButton: {
+    },
+    editTradingButton: {
       minHeight: 38,
       borderRadius: 15,
       backgroundColor: colors.surfaceSoft,

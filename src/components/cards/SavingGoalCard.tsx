@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 import { ThemeColors } from '../../constants/colors';
 import { useThemeColors } from '../../hooks/useThemeColors';
 import { Account, Currency, SavingGoal } from '../../types/finance';
@@ -13,6 +13,9 @@ type SavingGoalCardProps = {
   accounts: Account[];
   displayCurrency?: Currency;
   exchangeRates?: ExchangeRates;
+  onPress?: () => void;
+  onDeposit?: () => void;
+  onWithdrawal?: () => void;
 };
 
 const fallbackExchangeRates: ExchangeRates = {
@@ -79,6 +82,9 @@ export function SavingGoalCard({
   accounts,
   displayCurrency,
   exchangeRates,
+  onPress,
+  onDeposit,
+  onWithdrawal,
 }: SavingGoalCardProps) {
   const colors = useThemeColors();
   const styles = createStyles(colors);
@@ -117,7 +123,7 @@ export function SavingGoalCard({
   const hasConvertedDisplay = savingGoal.currency !== currencyBase;
 
   return (
-    <View style={styles.card}>
+    <Pressable onPress={onPress} style={styles.card}>
       <View style={styles.header}>
         <View style={[styles.iconBox, { borderColor: statusMeta.color }]}>
           <Ionicons name="sparkles-outline" size={22} color={statusMeta.color} />
@@ -208,7 +214,41 @@ export function SavingGoalCard({
           Source: {sourceAccount?.name || 'Unknown source account'}
         </AppText>
       </View>
-    </View>
+
+      {onDeposit || onWithdrawal ? (
+        <View style={styles.actionRow}>
+          {onDeposit ? (
+            <Pressable onPress={onDeposit} style={styles.actionButton}>
+              <Ionicons name="add-circle-outline" size={16} color={colors.black} />
+
+              <AppText variant="caption" style={styles.actionButtonText}>
+                Deposit
+              </AppText>
+            </Pressable>
+          ) : null}
+
+          {onWithdrawal ? (
+            <Pressable onPress={onWithdrawal} style={[styles.actionButton, styles.withdrawButton]}>
+              <Ionicons name="remove-circle-outline" size={16} color={colors.text} />
+
+              <AppText variant="caption" style={styles.withdrawButtonText}>
+                Withdraw
+              </AppText>
+            </Pressable>
+          ) : null}
+        </View>
+      ) : null}
+
+      {onPress ? (
+        <View style={styles.editHint}>
+          <AppText variant="caption" muted>
+            Tap to edit saving goal
+          </AppText>
+
+          <Ionicons name="create-outline" size={15} color={colors.textMuted} />
+        </View>
+      ) : null}
+    </Pressable>
   );
 }
 
@@ -320,6 +360,43 @@ function createStyles(colors: ThemeColors) {
       flexDirection: 'row',
       alignItems: 'center',
       gap: 8,
+    },
+    actionRow: {
+      marginTop: 12,
+      flexDirection: 'row',
+      gap: 9,
+    },
+    actionButton: {
+      flex: 1,
+      minHeight: 44,
+      borderRadius: 15,
+      backgroundColor: colors.primary,
+      alignItems: 'center',
+      justifyContent: 'center',
+      flexDirection: 'row',
+      gap: 6,
+    },
+    actionButtonText: {
+      color: colors.black,
+      fontWeight: '900',
+    },
+    withdrawButton: {
+      backgroundColor: colors.surfaceSoft,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    withdrawButtonText: {
+      color: colors.text,
+      fontWeight: '900',
+    },
+    editHint: {
+      marginTop: 12,
+      borderTopWidth: 1,
+      borderTopColor: colors.border,
+      paddingTop: 10,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
     },
     accountText: {
       flex: 1,

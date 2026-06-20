@@ -213,6 +213,10 @@ type AddAccountPayload = {
   type: AccountType;
   currency: Currency;
   initialBalance: number;
+  walletKind?: Account['walletKind'];
+  walletNetwork?: string;
+  walletAddress?: string;
+  supportedCryptoSymbols?: string[];
 };
 
 type UpdateAccountPayload = {
@@ -232,7 +236,26 @@ type AddSavingGoalPayload = {
   note?: string;
 };
 
+type UpdateSavingGoalPayload = {
+  savingGoalId: string;
+  name: string;
+  targetAmount: number;
+  currentAmount: number;
+  linkedSourceAccountId: string;
+  deadline?: string;
+  note?: string;
+  status?: SavingGoal['status'];
+};
+
 type AddCategoryPayload = {
+  name: string;
+  type: CategoryType;
+  icon?: string;
+  color?: string;
+};
+
+type UpdateCategoryPayload = {
+  categoryId: string;
   name: string;
   type: CategoryType;
   icon?: string;
@@ -480,7 +503,11 @@ type FinanceStore = {
   deleteAccount: (accountId: string) => ActionResult;
   permanentlyDeleteAccount: (accountId: string) => ActionResult;
   addSavingGoal: (payload: AddSavingGoalPayload) => ActionResult;
+  updateSavingGoal: (payload: UpdateSavingGoalPayload) => ActionResult;
+  deleteSavingGoal: (savingGoalId: string) => ActionResult;
   addCategory: (payload: AddCategoryPayload) => ActionResult;
+  updateCategory: (payload: UpdateCategoryPayload) => ActionResult;
+  deleteCategory: (categoryId: string) => ActionResult;
   addBudget: (payload: AddBudgetPayload) => ActionResult;
   updateBudget: (payload: UpdateBudgetPayload) => ActionResult;
   deleteBudget: (budgetId: string) => ActionResult;
@@ -513,40 +540,7 @@ type FinanceStore = {
   resetDemoData: () => void;
 };
 
-const initialAccounts: Account[] = [
-  {
-    id: 'acc-bca',
-    name: 'BCA',
-    type: 'bank',
-    currency: 'IDR',
-    balance: 1000000,
-    isActive: true,
-  },
-  {
-    id: 'acc-dana',
-    name: 'DANA',
-    type: 'e_wallet',
-    currency: 'IDR',
-    balance: 500000,
-    isActive: true,
-  },
-  {
-    id: 'acc-saving-laptop',
-    name: 'Saving Laptop',
-    type: 'saving',
-    currency: 'IDR',
-    balance: 500000,
-    isActive: true,
-  },
-  {
-    id: 'acc-investment',
-    name: 'Investment Portfolio',
-    type: 'broker',
-    currency: 'IDR',
-    balance: 1200000,
-    isActive: true,
-  },
-];
+const initialAccounts: Account[] = [];
 
 const initialCategories: Category[] = [
   {
@@ -671,71 +665,11 @@ const initialCategories: Category[] = [
   },
 ];
 
-const initialSavingGoals: SavingGoal[] = [
-  {
-    id: 'saving-goal-laptop',
-    name: 'Saving Laptop',
-    targetAmount: 5000000,
-    currentAmount: 500000,
-    currency: 'IDR',
-    savingAccountId: 'acc-saving-laptop',
-    linkedSourceAccountId: 'acc-bca',
-    deadline: '2026-12-31',
-    status: 'active',
-  },
-];
+const initialSavingGoals: SavingGoal[] = [];
 
-const initialBudgets: Budget[] = [
-  {
-    id: 'budget-food',
-    name: 'Food Budget',
-    categoryId: 'cat-expense-food',
-    categoryName: 'Food & Drink',
-    period: 'monthly',
-    limitAmount: 1000000,
-    currency: 'IDR',
-    isActive: true,
-    createdAt: new Date().toISOString(),
-  },
-  {
-    id: 'budget-transport',
-    name: 'Transport Budget',
-    categoryId: 'cat-expense-transport',
-    categoryName: 'Transport',
-    period: 'monthly',
-    limitAmount: 500000,
-    currency: 'IDR',
-    isActive: true,
-    createdAt: new Date().toISOString(),
-  },
-];
+const initialBudgets: Budget[] = [];
 
-const initialTransactions: Transaction[] = [
-  {
-    id: 'trx-income-demo',
-    type: 'income',
-    title: 'Side Job',
-    amount: 750000,
-    currency: 'IDR',
-    accountId: 'acc-bca',
-    accountName: 'BCA',
-    categoryId: 'cat-income-side-job',
-    categoryName: 'Side Job',
-    date: new Date().toISOString(),
-  },
-  {
-    id: 'trx-expense-demo',
-    type: 'expense',
-    title: 'Coffee',
-    amount: 25000,
-    currency: 'IDR',
-    accountId: 'acc-dana',
-    accountName: 'DANA',
-    categoryId: 'cat-expense-food',
-    categoryName: 'Food & Drink',
-    date: new Date().toISOString(),
-  },
-];
+const initialTransactions: Transaction[] = [];
 
 function getTradingPlanForAccountSnapshot(
   tradingPlans: TradingPlan[],
@@ -2584,6 +2518,21 @@ export const useFinanceStore = create<FinanceStore>((set, get) => {
       type: payload.type,
       currency: payload.currency,
       balance: payload.initialBalance,
+      walletKind: payload.type === 'crypto_wallet' ? payload.walletKind : undefined,
+      walletNetwork:
+        payload.type === 'crypto_wallet' ? payload.walletNetwork?.trim() || undefined : undefined,
+      walletAddress:
+        payload.type === 'crypto_wallet' ? payload.walletAddress?.trim() || undefined : undefined,
+      supportedCryptoSymbols:
+        payload.type === 'crypto_wallet'
+          ? Array.from(
+              new Set(
+                (payload.supportedCryptoSymbols || [])
+                  .map((symbol) => symbol.trim().toUpperCase())
+                  .filter(Boolean)
+              )
+            )
+          : undefined,
       isActive: true,
       createdAt: now,
       updatedAt: now,
@@ -3038,7 +2987,14 @@ export const useFinanceStore = create<FinanceStore>((set, get) => {
   },
 
   deleteAccount: (accountId) => {
-    const { accounts, transactions, savingGoals, investmentHoldings } = get();
+    const {
+      accounts,
+      transactions,
+      savingGoals,
+      investmentHoldings,
+      tradingAccounts,
+      tradingCashEvents,
+    } = get();
     const targetAccount = accounts.find((account) => account.id === accountId);
 
     if (!targetAccount) {
@@ -3048,19 +3004,44 @@ export const useFinanceStore = create<FinanceStore>((set, get) => {
       };
     }
 
-    const hasLinkedTransactions = transactions.some((transaction) =>
+    const linkedTransactions = transactions.filter((transaction) =>
       isTransactionLinkedToAccount(transaction, accountId)
     );
+    const blockingLinkedTransactions = linkedTransactions.filter(
+      (transaction) => transaction.type !== 'adjustment'
+    );
+    const hasOnlyAdjustmentTransactions =
+      linkedTransactions.length > 0 && blockingLinkedTransactions.length === 0;
+
+    const hasLinkedTransactions = blockingLinkedTransactions.length > 0;
     const hasLinkedSavingGoals = savingGoals.some((savingGoal) =>
       isSavingGoalLinkedToAccount(savingGoal, accountId)
     );
     const hasLinkedInvestmentHoldings = investmentHoldings.some(
       (holding) => holding.accountId === accountId
     );
-    const hasLinkedData =
-      hasLinkedTransactions || hasLinkedSavingGoals || hasLinkedInvestmentHoldings;
+    const hasLinkedTradingAccounts = tradingAccounts.some(
+      (tradingAccount) => tradingAccount.linkedBrokerWalletAccountId === accountId
+    );
+    const hasLinkedTradingCashEvents = tradingCashEvents.some(
+      (event) => event.linkedBrokerWalletAccountId === accountId
+    );
+    const hasBlockingLinkedData =
+      hasLinkedTransactions ||
+      hasLinkedSavingGoals ||
+      hasLinkedInvestmentHoldings ||
+      hasLinkedTradingAccounts ||
+      hasLinkedTradingCashEvents;
 
-    if (hasLinkedData) {
+    if (!hasBlockingLinkedData && targetAccount.balance > 0.00000001) {
+      return {
+        success: false,
+        message:
+          'Move or set this account balance to 0 before deleting it permanently.',
+      };
+    }
+
+    if (hasBlockingLinkedData) {
       setAndPersist({
         accounts: accounts.map((account) =>
           account.id === accountId
@@ -3082,11 +3063,20 @@ export const useFinanceStore = create<FinanceStore>((set, get) => {
 
     setAndPersist({
       accounts: accounts.filter((account) => account.id !== accountId),
+      transactions: transactions.filter(
+        (transaction) =>
+          !(
+            transaction.type === 'adjustment' &&
+            isTransactionLinkedToAccount(transaction, accountId)
+          )
+      ),
     });
 
     return {
       success: true,
-      message: 'Account deleted successfully.',
+      message: hasOnlyAdjustmentTransactions
+        ? 'Account deleted successfully. Balance adjustment history was also cleaned up.'
+        : 'Account deleted successfully.',
     };
   },
 
@@ -3098,6 +3088,8 @@ export const useFinanceStore = create<FinanceStore>((set, get) => {
       investmentHoldings,
       investmentOrders,
       investmentPriceHistory,
+      tradingAccounts,
+      tradingCashEvents,
     } = get();
     const targetAccount = accounts.find((account) => account.id === accountId);
 
@@ -3108,10 +3100,18 @@ export const useFinanceStore = create<FinanceStore>((set, get) => {
       };
     }
 
+    if (targetAccount.balance > 0.00000001) {
+      return {
+        success: false,
+        message: 'Set this account balance to 0 before deleting it permanently.',
+      };
+    }
+
     const holdingIdsToDelete = investmentHoldings
       .filter((holding) => holding.accountId === accountId)
       .map((holding) => holding.id);
     const holdingIdSet = new Set(holdingIdsToDelete);
+    const now = new Date().toISOString();
 
     setAndPersist({
       accounts: accounts.filter((account) => account.id !== accountId),
@@ -3130,12 +3130,24 @@ export const useFinanceStore = create<FinanceStore>((set, get) => {
       investmentPriceHistory: investmentPriceHistory.filter(
         (point) => !holdingIdSet.has(point.holdingId)
       ),
+      tradingCashEvents: tradingCashEvents.filter(
+        (event) => event.linkedBrokerWalletAccountId !== accountId
+      ),
+      tradingAccounts: tradingAccounts.map((tradingAccount) =>
+        tradingAccount.linkedBrokerWalletAccountId === accountId
+          ? {
+              ...tradingAccount,
+              linkedBrokerWalletAccountId: null,
+              updatedAt: now,
+            }
+          : tradingAccount
+      ),
     });
 
     return {
       success: true,
       message:
-        'Account permanently deleted with linked transactions, savings, investments, orders, and price history.',
+        'Account permanently deleted. Linked transactions, savings, investment records, and broker-wallet cash events were cleaned.',
     };
   },
 
@@ -3284,6 +3296,223 @@ export const useFinanceStore = create<FinanceStore>((set, get) => {
     };
   },
 
+
+  updateSavingGoal: (payload) => {
+    const { accounts, savingGoals } = get();
+
+    const savingGoal = savingGoals.find((saving) => saving.id === payload.savingGoalId);
+
+    if (!savingGoal) {
+      return {
+        success: false,
+        message: 'Saving goal not found.',
+      };
+    }
+
+    const trimmedName = payload.name.trim();
+
+    if (!trimmedName) {
+      return {
+        success: false,
+        message: 'Saving name is required.',
+      };
+    }
+
+    if (payload.targetAmount <= 0) {
+      return {
+        success: false,
+        message: 'Target amount must be greater than 0.',
+      };
+    }
+
+    if (payload.currentAmount < 0) {
+      return {
+        success: false,
+        message: 'Current saved amount cannot be negative.',
+      };
+    }
+
+    if (payload.currentAmount > payload.targetAmount) {
+      return {
+        success: false,
+        message: 'Current saved amount cannot be greater than target amount.',
+      };
+    }
+
+    const duplicateSaving = savingGoals.find(
+      (saving) =>
+        saving.id !== savingGoal.id &&
+        saving.name.toLowerCase() === trimmedName.toLowerCase()
+    );
+
+    if (duplicateSaving) {
+      return {
+        success: false,
+        message: 'Saving goal name already exists.',
+      };
+    }
+
+    const savingAccount = accounts.find(
+      (account) => account.id === savingGoal.savingAccountId
+    );
+
+    if (!savingAccount) {
+      return {
+        success: false,
+        message: 'Linked saving account not found.',
+      };
+    }
+
+    const duplicateAccount = accounts.find(
+      (account) =>
+        account.id !== savingAccount.id &&
+        account.name.toLowerCase() === trimmedName.toLowerCase()
+    );
+
+    if (duplicateAccount) {
+      return {
+        success: false,
+        message: 'Account with this saving name already exists.',
+      };
+    }
+
+    const sourceAccount = accounts.find(
+      (account) => account.id === payload.linkedSourceAccountId
+    );
+
+    if (!sourceAccount) {
+      return {
+        success: false,
+        message: 'Linked source account not found.',
+      };
+    }
+
+    if (sourceAccount.type === 'saving') {
+      return {
+        success: false,
+        message: 'Source account cannot be another saving wallet.',
+      };
+    }
+
+    const updatedAt = new Date().toISOString();
+    const nextStatus =
+      payload.status || getSavingStatus(payload.currentAmount, payload.targetAmount);
+
+    setAndPersist({
+      accounts: accounts.map((account) =>
+        account.id === savingAccount.id
+          ? {
+              ...account,
+              name: trimmedName,
+              currency: sourceAccount.currency,
+              balance: payload.currentAmount,
+              updatedAt,
+            }
+          : account
+      ),
+      savingGoals: savingGoals.map((saving) =>
+        saving.id === savingGoal.id
+          ? {
+              ...saving,
+              name: trimmedName,
+              targetAmount: payload.targetAmount,
+              currentAmount: payload.currentAmount,
+              currency: sourceAccount.currency,
+              linkedSourceAccountId: sourceAccount.id,
+              deadline: payload.deadline,
+              note: payload.note,
+              status: nextStatus,
+              updatedAt,
+            }
+          : saving
+      ),
+    });
+
+    return {
+      success: true,
+      message: 'Saving goal updated successfully.',
+    };
+  },
+
+  deleteSavingGoal: (savingGoalId) => {
+    const { accounts, savingGoals, transactions } = get();
+
+    const savingGoal = savingGoals.find((saving) => saving.id === savingGoalId);
+
+    if (!savingGoal) {
+      return {
+        success: false,
+        message: 'Saving goal not found.',
+      };
+    }
+
+    const savingAccount = accounts.find(
+      (account) => account.id === savingGoal.savingAccountId
+    );
+
+    if (!savingAccount) {
+      return {
+        success: false,
+        message: 'Linked saving account not found.',
+      };
+    }
+
+    const sourceAccount = accounts.find(
+      (account) => account.id === savingGoal.linkedSourceAccountId
+    );
+
+    if (savingGoal.currentAmount > 0 && !sourceAccount) {
+      return {
+        success: false,
+        message: 'Linked source account not found. Set saved amount to 0 before deleting.',
+      };
+    }
+
+    const refundAmount = savingGoal.currentAmount;
+    const refundTransaction: Transaction | null =
+      refundAmount > 0 && sourceAccount
+        ? {
+            id: createId('trx'),
+            type: 'saving_withdrawal',
+            title: `Delete Saving: ${savingGoal.name}`,
+            amount: refundAmount,
+            currency: savingGoal.currency,
+            fromAccountId: savingAccount.id,
+            toAccountId: sourceAccount.id,
+            accountName: `${savingGoal.name} → ${sourceAccount.name}`,
+            categoryName: 'Saving Withdrawal',
+            date: getTodayISO(),
+            note: 'Auto-returned saved amount when deleting saving goal.',
+          }
+        : null;
+
+    setAndPersist({
+      accounts: accounts
+        .filter((account) => account.id !== savingAccount.id)
+        .map((account) =>
+          sourceAccount && account.id === sourceAccount.id
+            ? {
+                ...account,
+                balance: account.balance + refundAmount,
+                updatedAt: new Date().toISOString(),
+              }
+            : account
+        ),
+      savingGoals: savingGoals.filter((saving) => saving.id !== savingGoal.id),
+      transactions: refundTransaction
+        ? [refundTransaction, ...transactions]
+        : transactions,
+    });
+
+    return {
+      success: true,
+      message:
+        refundAmount > 0
+          ? 'Saving goal deleted and saved amount returned to source account.'
+          : 'Saving goal deleted successfully.',
+    };
+  },
+
   addCategory: (payload) => {
     const { categories } = get();
 
@@ -3327,6 +3556,129 @@ export const useFinanceStore = create<FinanceStore>((set, get) => {
     return {
       success: true,
       message: 'Category created successfully.',
+    };
+  },
+
+  updateCategory: (payload) => {
+    const { categories, transactions, budgets } = get();
+
+    const category = categories.find((item) => item.id === payload.categoryId);
+
+    if (!category) {
+      return {
+        success: false,
+        message: 'Category not found.',
+      };
+    }
+
+    const trimmedName = payload.name.trim();
+
+    if (!trimmedName) {
+      return {
+        success: false,
+        message: 'Category name is required.',
+      };
+    }
+
+    const duplicateCategory = categories.find(
+      (item) =>
+        item.id !== category.id &&
+        item.type === payload.type &&
+        item.name.toLowerCase() === trimmedName.toLowerCase() &&
+        item.isActive
+    );
+
+    if (duplicateCategory) {
+      return {
+        success: false,
+        message: 'Category already exists.',
+      };
+    }
+
+    const updatedAt = new Date().toISOString();
+
+    setAndPersist({
+      categories: categories.map((item) =>
+        item.id === category.id
+          ? {
+              ...item,
+              name: trimmedName,
+              type: payload.type,
+              icon: payload.icon || item.icon || 'pricetag-outline',
+              color: payload.color || item.color || '#D4D4D4',
+              updatedAt,
+            }
+          : item
+      ),
+      transactions: transactions.map((transaction) =>
+        transaction.categoryId === category.id
+          ? {
+              ...transaction,
+              categoryName: trimmedName,
+            }
+          : transaction
+      ),
+      budgets: budgets.map((budget) =>
+        budget.categoryId === category.id
+          ? {
+              ...budget,
+              categoryName: trimmedName,
+              updatedAt,
+            }
+          : budget
+      ),
+    });
+
+    return {
+      success: true,
+      message: 'Category updated successfully.',
+    };
+  },
+
+  deleteCategory: (categoryId) => {
+    const { categories, transactions, budgets } = get();
+
+    const category = categories.find((item) => item.id === categoryId);
+
+    if (!category) {
+      return {
+        success: false,
+        message: 'Category not found.',
+      };
+    }
+
+    const isUsedByTransaction = transactions.some(
+      (transaction) => transaction.categoryId === category.id
+    );
+    const isUsedByBudget = budgets.some((budget) => budget.categoryId === category.id);
+    const updatedAt = new Date().toISOString();
+
+    if (category.isDefault || isUsedByTransaction || isUsedByBudget) {
+      setAndPersist({
+        categories: categories.map((item) =>
+          item.id === category.id
+            ? {
+                ...item,
+                isActive: false,
+                updatedAt,
+              }
+            : item
+        ),
+      });
+
+      return {
+        success: true,
+        message: 'Category archived to preserve existing transactions and budgets.',
+      };
+    }
+
+    setAndPersist({
+      categories: categories.filter((item) => item.id !== category.id),
+    });
+
+    return {
+      success: true,
+      message: 'Category deleted successfully.',
     };
   },
 
@@ -3498,12 +3850,20 @@ export const useFinanceStore = create<FinanceStore>((set, get) => {
     }
 
     setAndPersist({
-      budgets: budgets.filter((budget) => budget.id !== budgetId),
+      budgets: budgets.map((budget) =>
+        budget.id === budgetId
+          ? {
+              ...budget,
+              isActive: false,
+              updatedAt: getTodayISO(),
+            }
+          : budget
+      ),
     });
 
     return {
       success: true,
-      message: 'Budget deleted successfully.',
+      message: 'Budget archived successfully.',
     };
   },
 

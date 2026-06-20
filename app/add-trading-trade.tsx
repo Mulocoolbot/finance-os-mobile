@@ -284,35 +284,90 @@ export default function AddTradingTradeScreen() {
       </View>
 
       <View style={styles.previewCard}>
-        <View style={styles.previewMetric}>
-          <AppText variant="caption" muted>
-            Net P/L Preview
-          </AppText>
+        <View style={styles.previewHeader}>
+          <View style={styles.previewIcon}>
+            <Ionicons
+              name={direction === 'buy' ? 'trending-up-outline' : 'trending-down-outline'}
+              size={22}
+              color={direction === 'buy' ? colors.income : colors.expense}
+            />
+          </View>
 
-          <AppText
-            variant="body"
-            style={[
-              styles.previewValue,
-              { color: preview.net >= 0 ? colors.income : colors.expense },
-            ]}
-          >
-            {formatCurrency(preview.net, tradingAccount.currency)}
-          </AppText>
+          <View style={styles.previewTitleBox}>
+            <AppText variant="caption" muted>
+              Trade Preview
+            </AppText>
+
+            <AppText variant="subtitle" style={styles.previewTitle} numberOfLines={1}>
+              {pair || 'Trading Pair'} · {direction.toUpperCase()}
+            </AppText>
+
+            <AppText variant="caption" muted style={styles.previewDescription}>
+              {status === 'closed' ? 'Closed trade record' : 'Open position tracking'} · {lotSize || '0'} lot
+            </AppText>
+          </View>
+
+          <View style={styles.statusBadge}>
+            <Ionicons
+              name={status === 'closed' ? 'checkmark-circle-outline' : 'radio-button-on-outline'}
+              size={14}
+              color={status === 'closed' ? colors.income : colors.investment}
+            />
+
+            <AppText variant="caption" style={styles.statusBadgeText}>
+              {status.toUpperCase()}
+            </AppText>
+          </View>
         </View>
 
-        <View style={styles.previewMetric}>
-          <AppText variant="caption" muted>
-            Risk Preview
-          </AppText>
+        <View style={styles.previewGrid}>
+          <View style={styles.previewMetric}>
+            <AppText variant="caption" muted>
+              Net P/L Preview
+            </AppText>
 
-          <AppText variant="body" style={styles.previewValue}>
-            {formatCurrency(preview.risk, tradingAccount.currency)} •{' '}
-            {preview.riskPercent.toFixed(2)}%
-          </AppText>
+            <AppText
+              variant="body"
+              style={[
+                styles.previewValue,
+                { color: preview.net >= 0 ? colors.income : colors.expense },
+              ]}
+              numberOfLines={1}
+            >
+              {formatCurrency(preview.net, tradingAccount.currency)}
+            </AppText>
+          </View>
+
+          <View style={styles.previewMetric}>
+            <AppText variant="caption" muted>
+              Risk Preview
+            </AppText>
+
+            <AppText variant="body" style={styles.previewValue} numberOfLines={1}>
+              {formatCurrency(preview.risk, tradingAccount.currency)} •{' '}
+              {preview.riskPercent.toFixed(2)}%
+            </AppText>
+          </View>
         </View>
       </View>
 
       <View style={styles.formCard}>
+        <View style={styles.sectionMiniHeader}>
+          <View>
+            <AppText variant="caption" muted>
+              Step 1
+            </AppText>
+
+            <AppText variant="subtitle" style={styles.sectionMiniTitle}>
+              Status & direction
+            </AppText>
+          </View>
+
+          <AppText variant="caption" muted style={styles.sectionMiniHint}>
+            Trade flow
+          </AppText>
+        </View>
+
         <View style={styles.field}>
           <AppText variant="caption" muted style={styles.label}>
             Status
@@ -354,6 +409,22 @@ export default function AddTradingTradeScreen() {
             </View>
           </View>
         ) : null}
+
+        <View style={styles.sectionMiniHeader}>
+          <View>
+            <AppText variant="caption" muted>
+              Step 2
+            </AppText>
+
+            <AppText variant="subtitle" style={styles.sectionMiniTitle}>
+              Position setup
+            </AppText>
+          </View>
+
+          <AppText variant="caption" muted style={styles.sectionMiniHint}>
+            Pair & price
+          </AppText>
+        </View>
 
         <TextField label="Pair" value={pair} onChangeText={setPair} placeholder="XAUUSD" colors={colors} />
 
@@ -406,6 +477,22 @@ export default function AddTradingTradeScreen() {
               colors={colors}
             />
           </View>
+        </View>
+
+        <View style={styles.sectionMiniHeader}>
+          <View>
+            <AppText variant="caption" muted>
+              Step 3
+            </AppText>
+
+            <AppText variant="subtitle" style={styles.sectionMiniTitle}>
+              Risk & result
+            </AppText>
+          </View>
+
+          <AppText variant="caption" muted style={styles.sectionMiniHint}>
+            P/L & RR
+          </AppText>
         </View>
 
         {status === 'closed' ? (
@@ -469,6 +556,22 @@ export default function AddTradingTradeScreen() {
               colors={colors}
             />
           </View>
+        </View>
+
+        <View style={styles.sectionMiniHeader}>
+          <View>
+            <AppText variant="caption" muted>
+              Step 4
+            </AppText>
+
+            <AppText variant="subtitle" style={styles.sectionMiniTitle}>
+              Time, psychology & notes
+            </AppText>
+          </View>
+
+          <AppText variant="caption" muted style={styles.sectionMiniHint}>
+            Review
+          </AppText>
         </View>
 
         <View style={styles.twoColumn}>
@@ -711,10 +814,58 @@ function createStyles(colors: ThemeColors) {
       borderColor: colors.border,
       borderRadius: 24,
       padding: 14,
-      gap: 10,
+      gap: 12,
       marginBottom: 16,
     },
+    previewHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+    },
+    previewIcon: {
+      width: 46,
+      height: 46,
+      borderRadius: 17,
+      backgroundColor: colors.surfaceSoft,
+      borderWidth: 1,
+      borderColor: colors.border,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    previewTitleBox: {
+      flex: 1,
+      minWidth: 0,
+    },
+    previewTitle: {
+      marginTop: 4,
+      color: colors.text,
+    },
+    previewDescription: {
+      marginTop: 3,
+      lineHeight: 18,
+    },
+    statusBadge: {
+      minHeight: 32,
+      borderRadius: 999,
+      backgroundColor: colors.surfaceSoft,
+      borderWidth: 1,
+      borderColor: colors.border,
+      paddingHorizontal: 9,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 5,
+    },
+    statusBadgeText: {
+      color: colors.text,
+      fontWeight: '900',
+      fontSize: 10,
+    },
+    previewGrid: {
+      flexDirection: 'row',
+      gap: 10,
+    },
     previewMetric: {
+      flex: 1,
       backgroundColor: colors.surfaceSoft,
       borderWidth: 1,
       borderColor: colors.border,
@@ -734,6 +885,21 @@ function createStyles(colors: ThemeColors) {
       padding: 16,
       gap: 15,
       marginBottom: 16,
+    },
+    sectionMiniHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'flex-end',
+      gap: 12,
+      marginTop: 2,
+      marginBottom: -2,
+    },
+    sectionMiniTitle: {
+      marginTop: 3,
+      color: colors.text,
+    },
+    sectionMiniHint: {
+      fontWeight: '900',
     },
     field: {
       gap: 8,

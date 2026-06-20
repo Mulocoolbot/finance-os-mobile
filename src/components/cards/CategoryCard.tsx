@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 import { ThemeColors } from '../../constants/colors';
 import { useThemeColors } from '../../hooks/useThemeColors';
 import { Category } from '../../types/finance';
@@ -7,14 +7,15 @@ import { AppText } from '../ui/AppText';
 
 type CategoryCardProps = {
   category: Category;
+  onPress?: () => void;
 };
 
-export function CategoryCard({ category }: CategoryCardProps) {
+export function CategoryCard({ category, onPress }: CategoryCardProps) {
   const colors = useThemeColors();
   const styles = createStyles(colors);
 
   return (
-    <View style={styles.card}>
+    <Pressable onPress={onPress} style={styles.card}>
       <View
         style={[
           styles.iconBox,
@@ -25,31 +26,28 @@ export function CategoryCard({ category }: CategoryCardProps) {
       >
         <Ionicons
           name={(category.icon || 'pricetag-outline') as any}
-          size={22}
+          size={21}
           color={category.color || colors.text}
         />
       </View>
 
-      <View style={styles.content}>
-        <View style={styles.topRow}>
-          <View style={styles.nameBox}>
-            <AppText variant="body" style={styles.name} numberOfLines={1}>
-              {category.name}
-            </AppText>
+      <View style={styles.textBox}>
+        <AppText variant="body" style={styles.name} numberOfLines={1}>
+          {category.name}
+        </AppText>
 
-            <AppText variant="caption" muted>
-              {category.type === 'income' ? 'Income' : 'Expense'} category
-            </AppText>
-          </View>
-
-          <View style={styles.badge}>
-            <AppText variant="caption" muted>
-              {category.isDefault ? 'Default' : 'Custom'}
-            </AppText>
-          </View>
-        </View>
+        <AppText variant="caption" muted numberOfLines={1}>
+          {category.type === 'income' ? 'Income' : 'Expense'} •{' '}
+          {category.isDefault ? 'Default' : 'Custom'}
+        </AppText>
       </View>
-    </View>
+
+      {onPress ? (
+        <View style={styles.actionHint}>
+          <Ionicons name="create-outline" size={16} color={colors.textMuted} />
+        </View>
+      ) : null}
+    </Pressable>
   );
 }
 
@@ -74,31 +72,23 @@ function createStyles(colors: ThemeColors) {
       alignItems: 'center',
       justifyContent: 'center',
     },
-    content: {
-      flex: 1,
-      minWidth: 0,
-    },
-    topRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 12,
-      justifyContent: 'space-between',
-    },
-    nameBox: {
+    textBox: {
       flex: 1,
       minWidth: 0,
     },
     name: {
+      color: colors.text,
       fontWeight: '900',
-      marginBottom: 4,
     },
-    badge: {
+    actionHint: {
+      width: 34,
+      height: 34,
+      borderRadius: 13,
       backgroundColor: colors.surfaceSoft,
       borderWidth: 1,
       borderColor: colors.border,
-      borderRadius: 999,
-      paddingHorizontal: 9,
-      paddingVertical: 5,
+      alignItems: 'center',
+      justifyContent: 'center',
     },
   });
 }

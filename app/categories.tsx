@@ -93,7 +93,16 @@ export default function CategoriesScreen() {
         ) : null}
 
         {filteredCategories.map((category) => (
-          <CategoryCard key={category.id} category={category} />
+          <CategoryCard
+            key={category.id}
+            category={category}
+            onPress={() =>
+              router.push({
+                pathname: '/add-category',
+                params: { categoryId: category.id },
+              })
+            }
+          />
         ))}
       </View>
     </Screen>
