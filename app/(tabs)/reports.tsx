@@ -7,6 +7,7 @@ import { StatCard } from '../../src/components/ui/StatCard';
 import { ThemeColors } from '../../src/constants/colors';
 import { useThemeColors } from '../../src/hooks/useThemeColors';
 import { useFinanceStore } from '../../src/stores/useFinanceStore';
+import type { TradingAccount, TradingPlan, TradingTrade } from '../../src/stores/useFinanceStore';
 import { Currency, InvestmentHolding, InvestmentOrder, Transaction } from '../../src/types/finance';
 import { formatCurrency } from '../../src/utils/currency';
 import { convertCurrencyAmount } from '../../src/utils/currencyConversion';
@@ -31,6 +32,35 @@ type MonthlySummary = {
   income: number;
   expense: number;
   net: number;
+};
+
+type TradingAccountReport = {
+  accountId: string;
+  accountName: string;
+  broker: string;
+  currency: Currency;
+  closedTrades: number;
+  openTrades: number;
+  wins: number;
+  losses: number;
+  netProfitLoss: number;
+  convertedNetProfitLoss: number;
+  winRate: number;
+  averageRR: number;
+  issueCount: number;
+};
+
+type TradingAISummary = {
+  closedTrades: number;
+  openTrades: number;
+  wins: number;
+  losses: number;
+  netProfitLoss: number;
+  winRate: number;
+  averageRR: number;
+  issueCount: number;
+  accountReports: TradingAccountReport[];
+  insights: string[];
 };
 
 function formatCompactCurrency(amount: number, currency: Currency) {
@@ -619,6 +649,261 @@ function getInsightText(summary: ReturnType<typeof getSummary>, currency: Curren
   return `Negative cashflow: spending is ${formatCompactCurrency(Math.abs(summary.net), currency)} above income.`;
 }
 
+function getSafeDate(value: string | null | undefined) {
+  if (!value) {
+    return new Date();
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return new Date();
+  }
+
+  return date;
+}
+
+function getTradeReportDate(trade: TradingTrade) {
+  return trade.closeDate || trade.openDate;
+}
+
+function isTradeInReportPeriod(
+  trade: TradingTrade,
+  reportMode: ReportMode,
+  selectedMonth: Date,
+  selectedYear: number
+) {
+  const date = getSafeDate(getTradeReportDate(trade));
+
+  if (reportMode === 'monthly') {
+    return (
+      date.getMonth() === selectedMonth.getMonth() &&
+      date.getFullYear() === selectedMonth.getFullYear()
+    );
+  }
+
+  return date.getFullYear() === selectedYear;
+}
+
+function getTradingAccountRealBalance(account: TradingAccount) {
+  if (account.accountType === 'cent') {
+    return (account.balance || 0) / 100;
+  }
+
+  return account.balance || 0;
+}
+
+function getTradeDayKey(trade: TradingTrade) {
+  return getSafeDate(getTradeReportDate(trade)).toISOString().slice(0, 10);
+}
+
+function getTradingPlanIssueCount(
+  trades: TradingTrade[],
+  account: TradingAccount,
+  plan: TradingPlan | undefined
+) {
+  if (!plan) {
+    return trades.length > 0 ? 1 : 0;
+  }
+
+  let issueCount = 0;
+  const tradesByDay = trades.reduce<Record<string, TradingTrade[]>>((acc, trade) => {
+    const key = getTradeDayKey(trade);
+
+    if (!acc[key]) {
+      acc[key] = [];
+    }
+
+    acc[key].push(trade);
+
+    return acc;
+  }, {});
+
+  Object.values(tradesByDay).forEach((dailyTrades) => {
+    if (dailyTrades.length > plan.maxTradesPerDay) {
+      issueCount += 1;
+    }
+
+    const dailyNet = dailyTrades
+      .filter((trade) => trade.status === 'closed')
+      .reduce((total, trade) => total + trade.netProfitLoss, 0);
+
+    if (dailyNet <= -Math.abs(plan.dailyMaxLossAmount)) {
+      issueCount += 1;
+    }
+  });
+
+  trades.forEach((trade) => {
+    if (
+      plan.allowedPairs.length > 0 &&
+      !plan.allowedPairs.some(
+        (pair) => pair.toUpperCase() === trade.pair.toUpperCase()
+      )
+    ) {
+      issueCount += 1;
+    }
+
+    const fallbackRiskLimit =
+      (getTradingAccountRealBalance(account) * plan.riskPerTradePercent) / 100;
+    const lockedRiskLimit =
+      trade.planRiskLimitAmountSnapshot > 0
+        ? trade.planRiskLimitAmountSnapshot
+        : fallbackRiskLimit;
+
+    if (lockedRiskLimit > 0 && trade.riskAmount > lockedRiskLimit) {
+      issueCount += 1;
+    }
+
+    if (
+      trade.status === 'closed' &&
+      trade.rewardRiskRatio > 0 &&
+      trade.rewardRiskRatio < plan.minimumRewardRiskRatio
+    ) {
+      issueCount += 1;
+    }
+  });
+
+  return issueCount;
+}
+
+function buildTradingAIReports(
+  accounts: TradingAccount[],
+  trades: TradingTrade[],
+  plans: TradingPlan[],
+  reportMode: ReportMode,
+  selectedMonth: Date,
+  selectedYear: number,
+  defaultCurrency: Currency,
+  exchangeRates: Record<Currency, number>
+): TradingAISummary {
+  const periodTrades = trades.filter((trade) =>
+    isTradeInReportPeriod(trade, reportMode, selectedMonth, selectedYear)
+  );
+  const closedTrades = periodTrades.filter((trade) => trade.status === 'closed');
+  const wins = closedTrades.filter((trade) => trade.netProfitLoss > 0).length;
+  const losses = closedTrades.filter((trade) => trade.netProfitLoss < 0).length;
+  const netProfitLoss = closedTrades.reduce((total, trade) => {
+    return (
+      total +
+      convertCurrencyAmount(
+        trade.netProfitLoss,
+        trade.currency,
+        defaultCurrency,
+        exchangeRates
+      )
+    );
+  }, 0);
+  const averageRR =
+    closedTrades.length > 0
+      ? closedTrades.reduce((total, trade) => total + trade.rewardRiskRatio, 0) /
+        closedTrades.length
+      : 0;
+  const winRate = closedTrades.length > 0 ? (wins / closedTrades.length) * 100 : 0;
+
+  const accountReports = accounts
+    .map((account) => {
+      const accountTrades = periodTrades.filter(
+        (trade) => trade.tradingAccountId === account.id
+      );
+      const accountClosedTrades = accountTrades.filter(
+        (trade) => trade.status === 'closed'
+      );
+      const accountWins = accountClosedTrades.filter(
+        (trade) => trade.netProfitLoss > 0
+      ).length;
+      const accountLosses = accountClosedTrades.filter(
+        (trade) => trade.netProfitLoss < 0
+      ).length;
+      const accountNetProfitLoss = accountClosedTrades.reduce(
+        (total, trade) => total + trade.netProfitLoss,
+        0
+      );
+      const convertedNetProfitLoss = convertCurrencyAmount(
+        accountNetProfitLoss,
+        account.currency,
+        defaultCurrency,
+        exchangeRates
+      );
+      const accountAverageRR =
+        accountClosedTrades.length > 0
+          ? accountClosedTrades.reduce(
+              (total, trade) => total + trade.rewardRiskRatio,
+              0
+            ) / accountClosedTrades.length
+          : 0;
+      const accountWinRate =
+        accountClosedTrades.length > 0
+          ? (accountWins / accountClosedTrades.length) * 100
+          : 0;
+      const plan = plans.find((item) => item.tradingAccountId === account.id);
+      const issueCount = getTradingPlanIssueCount(accountTrades, account, plan);
+
+      return {
+        accountId: account.id,
+        accountName: account.name,
+        broker: account.broker,
+        currency: account.currency,
+        closedTrades: accountClosedTrades.length,
+        openTrades: accountTrades.filter((trade) => trade.status === 'open').length,
+        wins: accountWins,
+        losses: accountLosses,
+        netProfitLoss: accountNetProfitLoss,
+        convertedNetProfitLoss,
+        winRate: accountWinRate,
+        averageRR: accountAverageRR,
+        issueCount,
+      };
+    })
+    .filter((item) => item.closedTrades > 0 || item.openTrades > 0 || item.issueCount > 0)
+    .sort(
+      (firstItem, secondItem) =>
+        Math.abs(secondItem.convertedNetProfitLoss) -
+        Math.abs(firstItem.convertedNetProfitLoss)
+    );
+
+  const issueCount = accountReports.reduce(
+    (total, item) => total + item.issueCount,
+    0
+  );
+
+  const insights: string[] = [];
+
+  if (closedTrades.length === 0) {
+    insights.push('No closed trading data in this selected period yet.');
+  } else if (netProfitLoss >= 0 && issueCount === 0) {
+    insights.push('Trading performance is positive and no major plan issue is detected.');
+  } else if (netProfitLoss >= 0 && issueCount > 0) {
+    insights.push('Trading is profitable, but discipline needs review because plan issues exist.');
+  } else {
+    insights.push('Trading result is negative. Review risk, setup quality, and execution discipline.');
+  }
+
+  if (winRate < 40 && closedTrades.length >= 3) {
+    insights.push('Win rate is weak; consider reducing frequency and waiting for stronger confirmations.');
+  }
+
+  if (averageRR > 0 && averageRR < 1.5) {
+    insights.push('Average RR is low; check whether entries are too late or targets are too close.');
+  }
+
+  if (issueCount > 0) {
+    insights.push(`${issueCount} plan issue${issueCount === 1 ? '' : 's'} detected across trading accounts.`);
+  }
+
+  return {
+    closedTrades: closedTrades.length,
+    openTrades: periodTrades.filter((trade) => trade.status === 'open').length,
+    wins,
+    losses,
+    netProfitLoss,
+    winRate,
+    averageRR,
+    issueCount,
+    accountReports,
+    insights: insights.slice(0, 4),
+  };
+}
+
 export default function ReportsScreen() {
   const colors = useThemeColors();
   const styles = createStyles(colors);
@@ -626,6 +911,9 @@ export default function ReportsScreen() {
   const transactions = useFinanceStore((state) => state.transactions);
   const investmentHoldings = useFinanceStore((state) => state.investmentHoldings);
   const investmentOrders = useFinanceStore((state) => state.investmentOrders);
+  const tradingAccounts = useFinanceStore((state) => state.tradingAccounts);
+  const tradingTrades = useFinanceStore((state) => state.tradingTrades);
+  const tradingPlans = useFinanceStore((state) => state.tradingPlans);
   const defaultCurrency = useFinanceStore((state) => state.defaultCurrency);
   const exchangeRates = useFinanceStore((state) => state.exchangeRates);
 
@@ -699,6 +987,28 @@ export default function ReportsScreen() {
   }, [
     investmentHoldings,
     periodInvestmentOrders,
+    defaultCurrency,
+    exchangeRates,
+  ]);
+
+  const tradingAISummary = useMemo(() => {
+    return buildTradingAIReports(
+      tradingAccounts,
+      tradingTrades,
+      tradingPlans,
+      reportMode,
+      selectedMonth,
+      selectedYear,
+      defaultCurrency,
+      exchangeRates
+    );
+  }, [
+    tradingAccounts,
+    tradingTrades,
+    tradingPlans,
+    reportMode,
+    selectedMonth,
+    selectedYear,
     defaultCurrency,
     exchangeRates,
   ]);
@@ -872,6 +1182,118 @@ export default function ReportsScreen() {
           value={formatCompactCurrency(summary.savingFlow, defaultCurrency)}
           tone={summary.savingFlow >= 0 ? 'saving' : 'expense'}
         />
+      </View>
+
+      <View style={styles.sectionHeader}>
+        <AppText variant="subtitle">Trading AI Summary</AppText>
+
+        <AppText variant="caption" muted>
+          {tradingAISummary.closedTrades} closed
+        </AppText>
+      </View>
+
+      <View style={styles.tradingHeroCard}>
+        <View style={styles.tradingHeroIcon}>
+          <Ionicons
+            name={tradingAISummary.issueCount > 0 ? 'alert-circle-outline' : 'sparkles-outline'}
+            size={24}
+            color={colors.black}
+          />
+        </View>
+
+        <View style={styles.tradingHeroTextBox}>
+          <AppText variant="caption" style={styles.tradingHeroLabel}>
+            Trading Net P/L • {defaultCurrency} base
+          </AppText>
+
+          <AppText
+            variant="title"
+            style={[
+              styles.tradingHeroValue,
+              {
+                color:
+                  tradingAISummary.netProfitLoss >= 0
+                    ? colors.income
+                    : colors.expense,
+              },
+            ]}
+            numberOfLines={1}
+          >
+            {tradingAISummary.netProfitLoss >= 0 ? '+' : ''}
+            {formatCompactCurrency(tradingAISummary.netProfitLoss, defaultCurrency)}
+          </AppText>
+
+          <AppText variant="caption" style={styles.tradingHeroDescription} numberOfLines={2}>
+            {tradingAISummary.winRate.toFixed(1)}% win rate • average RR 1:
+            {tradingAISummary.averageRR.toFixed(2)} • {tradingAISummary.issueCount} issue
+            {tradingAISummary.issueCount === 1 ? '' : 's'}
+          </AppText>
+        </View>
+      </View>
+
+      <View style={styles.grid}>
+        <StatCard
+          label="Closed Trades"
+          value={`${tradingAISummary.closedTrades}`}
+          tone="transfer"
+        />
+
+        <StatCard
+          label="Open Trades"
+          value={`${tradingAISummary.openTrades}`}
+          tone="saving"
+        />
+
+        <StatCard
+          label="Wins / Losses"
+          value={`${tradingAISummary.wins} / ${tradingAISummary.losses}`}
+          tone={tradingAISummary.wins >= tradingAISummary.losses ? 'income' : 'expense'}
+        />
+
+        <StatCard
+          label="Plan Issues"
+          value={`${tradingAISummary.issueCount}`}
+          tone={tradingAISummary.issueCount > 0 ? 'expense' : 'income'}
+        />
+      </View>
+
+      <View style={styles.tradingInsightCard}>
+        {tradingAISummary.insights.map((insight, index) => (
+          <View key={`trading-insight-${index}`} style={styles.tradingInsightRow}>
+            <Ionicons
+              name={index === 0 ? 'sparkles-outline' : 'ellipse-outline'}
+              size={15}
+              color={colors.textMuted}
+            />
+
+            <AppText variant="caption" muted style={styles.tradingInsightText}>
+              {insight}
+            </AppText>
+          </View>
+        ))}
+      </View>
+
+      <View style={styles.tradingAccountList}>
+        {tradingAISummary.accountReports.length === 0 ? (
+          <View style={styles.emptyBox}>
+            <AppText variant="body" style={styles.emptyTitle}>
+              No trading activity
+            </AppText>
+
+            <AppText variant="caption" muted style={styles.emptyDescription}>
+              Trading account reports will appear here after you record trades in this period.
+            </AppText>
+          </View>
+        ) : null}
+
+        {tradingAISummary.accountReports.map((accountReport) => (
+          <TradingAccountReportRow
+            key={accountReport.accountId}
+            report={accountReport}
+            defaultCurrency={defaultCurrency}
+            styles={styles}
+          />
+        ))}
       </View>
 
       <View style={styles.sectionHeader}>
@@ -1114,6 +1536,84 @@ export default function ReportsScreen() {
         ))}
       </View>
     </Screen>
+  );
+}
+
+function TradingAccountReportRow({
+  report,
+  defaultCurrency,
+  styles,
+}: {
+  report: TradingAccountReport;
+  defaultCurrency: Currency;
+  styles: ReturnType<typeof createStyles>;
+}) {
+  const pnlPositive = report.convertedNetProfitLoss >= 0;
+
+  return (
+    <View style={styles.tradingAccountRow}>
+      <View style={styles.tradingAccountTop}>
+        <View style={styles.tradingAccountNameBox}>
+          <AppText variant="body" style={styles.tradingAccountName} numberOfLines={1}>
+            {report.accountName}
+          </AppText>
+
+          <AppText variant="caption" muted numberOfLines={1}>
+            {report.broker || 'No broker'} • {report.closedTrades} closed • {report.openTrades} open
+          </AppText>
+        </View>
+
+        <AppText
+          variant="body"
+          style={[
+            styles.tradingAccountAmount,
+            pnlPositive ? styles.positiveText : styles.negativeText,
+          ]}
+          numberOfLines={1}
+        >
+          {pnlPositive ? '+' : ''}
+          {formatCompactCurrency(report.convertedNetProfitLoss, defaultCurrency)}
+        </AppText>
+      </View>
+
+      <View style={styles.tradingAccountMetrics}>
+        <View style={styles.tradingAccountMetric}>
+          <AppText variant="caption" muted>
+            Win Rate
+          </AppText>
+
+          <AppText variant="caption" style={styles.tradingAccountMetricValue}>
+            {report.winRate.toFixed(1)}%
+          </AppText>
+        </View>
+
+        <View style={styles.tradingAccountMetric}>
+          <AppText variant="caption" muted>
+            Avg RR
+          </AppText>
+
+          <AppText variant="caption" style={styles.tradingAccountMetricValue}>
+            1:{report.averageRR.toFixed(2)}
+          </AppText>
+        </View>
+
+        <View style={styles.tradingAccountMetric}>
+          <AppText variant="caption" muted>
+            Issues
+          </AppText>
+
+          <AppText
+            variant="caption"
+            style={[
+              styles.tradingAccountMetricValue,
+              report.issueCount > 0 ? styles.negativeText : styles.positiveText,
+            ]}
+          >
+            {report.issueCount}
+          </AppText>
+        </View>
+      </View>
+    </View>
   );
 }
 
@@ -1542,6 +2042,114 @@ function createStyles(colors: ThemeColors) {
     alignItems: 'flex-end',
     justifyContent: 'space-between',
     gap: 12,
+  },
+  tradingHeroCard: {
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 26,
+    padding: 18,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    marginBottom: 14,
+  },
+  tradingHeroIcon: {
+    width: 54,
+    height: 54,
+    borderRadius: 20,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  tradingHeroTextBox: {
+    flex: 1,
+    minWidth: 0,
+  },
+  tradingHeroLabel: {
+    color: colors.textMuted,
+    fontWeight: '900',
+  },
+  tradingHeroValue: {
+    marginTop: 5,
+    fontWeight: '900',
+  },
+  tradingHeroDescription: {
+    marginTop: 4,
+    color: colors.textMuted,
+    fontWeight: '800',
+  },
+  tradingInsightCard: {
+    marginTop: 14,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 22,
+    padding: 14,
+    gap: 9,
+  },
+  tradingInsightRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+  },
+  tradingInsightText: {
+    flex: 1,
+    lineHeight: 18,
+  },
+  tradingAccountList: {
+    marginTop: 14,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 24,
+    padding: 15,
+    gap: 12,
+  },
+  tradingAccountRow: {
+    borderRadius: 19,
+    backgroundColor: colors.surfaceSoft,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: 13,
+    gap: 12,
+  },
+  tradingAccountTop: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  tradingAccountNameBox: {
+    flex: 1,
+    minWidth: 0,
+  },
+  tradingAccountName: {
+    color: colors.text,
+    fontWeight: '900',
+  },
+  tradingAccountAmount: {
+    fontWeight: '900',
+    maxWidth: 132,
+    textAlign: 'right',
+  },
+  tradingAccountMetrics: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  tradingAccountMetric: {
+    flex: 1,
+    borderRadius: 15,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: 10,
+    paddingVertical: 9,
+  },
+  tradingAccountMetricValue: {
+    marginTop: 4,
+    color: colors.text,
+    fontWeight: '900',
   },
   investmentHeroCard: {
     backgroundColor: colors.primary,

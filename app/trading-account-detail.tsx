@@ -26,17 +26,6 @@ type GrowthPoint = {
   periodKey: string;
 };
 
-type SummaryReadiness = {
-  period: PeriodFilter;
-  label: string;
-  periodKey: string;
-  isReady: boolean;
-  deposit: number;
-  withdrawal: number;
-  net: number;
-  eventCount: number;
-  reason: string;
-};
 
 type TradeReport = {
   periodKey: string;
@@ -52,6 +41,23 @@ type TradeReport = {
   violationCount: number;
   warningCount: number;
   checks: string[];
+};
+
+type AITradingSummary = {
+  period: PeriodFilter;
+  label: string;
+  periodKey: string;
+  periodLabel: string;
+  isReady: boolean;
+  status: 'waiting' | 'good' | 'warning' | 'danger';
+  headline: string;
+  summary: string;
+  focus: string;
+  netProfitLoss: number;
+  winRate: number;
+  closedTrades: number;
+  violationCount: number;
+  actionItems: string[];
 };
 
 const periodFilters: { label: string; value: PeriodFilter }[] = [
@@ -319,40 +325,6 @@ function buildGrowthPoints(
       value: currentRealBalance,
     },
   ];
-}
-
-function buildSummaryReadiness(
-  events: TradingCashEvent[],
-  account: TradingAccount
-): SummaryReadiness[] {
-  return periodFilters.map((periodItem) => {
-    const periodKey = getCompletedPeriodKey(periodItem.value);
-    const eventsInPeriod = events.filter(
-      (event) => getPeriodKey(event.date, periodItem.value) === periodKey
-    );
-    const deposit = eventsInPeriod
-      .filter((event) => event.eventType === 'deposit')
-      .reduce((total, event) => total + event.tradingAccountRealAmount, 0);
-    const withdrawal = eventsInPeriod
-      .filter((event) => event.eventType === 'withdrawal')
-      .reduce((total, event) => total + event.tradingAccountRealAmount, 0);
-    const net = deposit - withdrawal;
-    const hasClosedPeriodData = eventsInPeriod.length > 0;
-
-    return {
-      period: periodItem.value,
-      label: periodItem.label,
-      periodKey,
-      isReady: hasClosedPeriodData,
-      deposit,
-      withdrawal,
-      net,
-      eventCount: eventsInPeriod.length,
-      reason: hasClosedPeriodData
-        ? 'Closed-period data is available. AI summary will become deeper after Trading Plan and Trade History are added.'
-        : 'Waiting for closed-period data. Daily summary uses yesterday only after the date changes.',
-    };
-  });
 }
 
 function getChartRange(points: GrowthPoint[]) {
@@ -634,6 +606,185 @@ function summarizeCompliance(reports: TradeReport[]) {
   );
 }
 
+function getAIStatus(report: TradeReport | undefined, hasPlan: boolean) {
+  if (!report || report.closedTrades === 0) {
+    return 'waiting' as const;
+  }
+
+  if (!hasPlan || report.violationCount > 0) {
+    return 'danger' as const;
+  }
+
+  if (report.warningCount > 0 || report.netProfitLoss < 0) {
+    return 'warning' as const;
+  }
+
+  return 'good' as const;
+}
+
+function getAIStatusLabel(status: AITradingSummary['status']) {
+  if (status === 'good') return 'Good';
+  if (status === 'warning') return 'Review';
+  if (status === 'danger') return 'Issue';
+
+  return 'Waiting';
+}
+
+function getAIStatusIcon(status: AITradingSummary['status']) {
+  if (status === 'good') return 'checkmark-circle-outline';
+  if (status === 'warning') return 'warning-outline';
+  if (status === 'danger') return 'alert-circle-outline';
+
+  return 'time-outline';
+}
+
+function getAIStatusColor(status: AITradingSummary['status'], colors: ThemeColors) {
+  if (status === 'good') return colors.income;
+  if (status === 'warning') return colors.investment;
+  if (status === 'danger') return colors.expense;
+
+  return colors.textMuted;
+}
+
+function buildAIActionItems(report: TradeReport | undefined, plan: TradingPlan | undefined) {
+  if (!report) {
+    return [
+      'Wait until the period closes and at least one closed trade is recorded.',
+      'Keep recording trades with setup, risk, RR, mistakes, and emotion notes.',
+    ];
+  }
+
+  const items: string[] = [];
+
+  if (!plan) {
+    items.push('Create a trading plan before relying on AI discipline analysis.');
+  }
+
+  if (report.violationCount > 0) {
+    const issueChecks = report.checks.filter(
+      (check) =>
+        !check.includes('No plan violation') &&
+        !check.includes('target reached')
+    );
+
+    items.push(...issueChecks.slice(0, 3));
+  }
+
+  if (report.closedTrades === 0) {
+    items.push('No closed trade yet in this period, so performance analysis is waiting.');
+  }
+
+  if (report.netProfitLoss < 0) {
+    items.push('Review losing trades and identify whether the loss came from setup, risk, or execution.');
+  }
+
+  if (report.averageRR > 0 && plan && report.averageRR < plan.minimumRewardRiskRatio) {
+    items.push('Improve trade selection because average RR is below the trading plan.');
+  }
+
+  if (report.winRate < 40 && report.closedTrades >= 3) {
+    items.push('Win rate is weak; reduce frequency and wait for higher-quality setups.');
+  }
+
+  if (items.length === 0) {
+    items.push('Maintain discipline. Keep documenting setup, risk, and emotions for every trade.');
+    items.push('Repeat the same risk structure and avoid increasing lot size after wins.');
+  }
+
+  return items.slice(0, 4);
+}
+
+function buildAITradingSummaries(
+  trades: TradingTrade[],
+  plan: TradingPlan | undefined,
+  account: TradingAccount,
+  currentRealBalance: number
+): AITradingSummary[] {
+  return periodFilters.map((periodItem) => {
+    const periodKey = getCompletedPeriodKey(periodItem.value);
+    const periodReports = buildTradeReports(
+      trades,
+      plan,
+      account,
+      periodItem.value,
+      currentRealBalance
+    );
+    const report = periodReports.find((item) => item.periodKey === periodKey);
+    const status = getAIStatus(report, Boolean(plan));
+    const periodLabel = getPeriodLabel(periodKey, periodItem.value);
+
+    if (!report || report.closedTrades === 0) {
+      return {
+        period: periodItem.value,
+        label: periodItem.label,
+        periodKey,
+        periodLabel,
+        isReady: false,
+        status,
+        headline: `${periodItem.label} summary is waiting`,
+        summary:
+          periodItem.value === 'daily'
+            ? 'Daily summary only analyzes yesterday after the date changes and at least one closed trade exists.'
+            : `${periodItem.label} summary only analyzes the last closed ${periodItem.label.toLowerCase()} period after closed trades exist.`,
+        focus: 'Keep recording trades consistently so this period can be analyzed later.',
+        netProfitLoss: 0,
+        winRate: 0,
+        closedTrades: 0,
+        violationCount: 0,
+        actionItems: buildAIActionItems(report, plan),
+      };
+    }
+
+    const profitText =
+      report.netProfitLoss > 0
+        ? 'profitable'
+        : report.netProfitLoss < 0
+          ? 'negative'
+          : 'flat';
+    const disciplineText =
+      !plan
+        ? 'because no trading plan is active yet'
+        : report.violationCount > 0
+          ? `with ${report.violationCount} plan issue${report.violationCount === 1 ? '' : 's'}`
+          : 'with no major plan violation';
+    const headline =
+      status === 'good'
+        ? `${periodItem.label} was disciplined and profitable`
+        : status === 'warning'
+          ? `${periodItem.label} needs review`
+          : status === 'danger'
+            ? `${periodItem.label} has discipline issues`
+            : `${periodItem.label} summary is waiting`;
+
+    return {
+      period: periodItem.value,
+      label: periodItem.label,
+      periodKey,
+      periodLabel,
+      isReady: true,
+      status,
+      headline,
+      summary: `${periodLabel} closed with ${report.closedTrades} closed trade${
+        report.closedTrades === 1 ? '' : 's'
+      }, ${report.winRate.toFixed(1)}% win rate, and ${formatCurrency(
+        report.netProfitLoss,
+        account.currency
+      )} net P/L. The period was ${profitText} ${disciplineText}.`,
+      focus:
+        report.violationCount > 0
+          ? 'Focus on rule compliance before increasing trade frequency.'
+          : report.netProfitLoss < 0
+            ? 'Focus on execution quality and reduce trades with weak confirmation.'
+            : 'Focus on repeating the same discipline and protecting gains.',
+      netProfitLoss: report.netProfitLoss,
+      winRate: report.winRate,
+      closedTrades: report.closedTrades,
+      violationCount: report.violationCount,
+      actionItems: buildAIActionItems(report, plan),
+    };
+  });
+}
+
 function getTradeDate(trade: TradingTrade) {
   return trade.closeDate || trade.openDate;
 }
@@ -770,6 +921,19 @@ export default function TradingAccountDetailScreen() {
     return summarizeCompliance(tradeReports);
   }, [tradeReports]);
 
+  const aiSummaries = useMemo(() => {
+    if (!tradingAccount) {
+      return [];
+    }
+
+    return buildAITradingSummaries(
+      accountTrades,
+      tradingPlan,
+      tradingAccount,
+      realBalance
+    );
+  }, [accountTrades, realBalance, tradingAccount, tradingPlan]);
+
   const realEquity = tradingAccount
     ? getRealTradingAmount(tradingAccount, tradingAccount.equity)
     : 0;
@@ -790,14 +954,6 @@ export default function TradingAccountDetailScreen() {
 
     return buildGrowthPoints(accountEvents, tradingAccount, period, realBalance);
   }, [accountEvents, period, realBalance, tradingAccount]);
-
-  const summaryReadiness = useMemo(() => {
-    if (!tradingAccount) {
-      return [];
-    }
-
-    return buildSummaryReadiness(accountEvents, tradingAccount);
-  }, [accountEvents, tradingAccount]);
 
   if (!tradingAccount) {
     return (
@@ -1385,69 +1541,98 @@ export default function TradingAccountDetailScreen() {
       <View style={styles.sectionHeader}>
         <AppText variant="subtitle">AI Summary Center</AppText>
         <AppText variant="caption" muted>
-          readiness
+          local
         </AppText>
       </View>
 
       <View style={styles.summaryList}>
-        {summaryReadiness.map((summary) => (
+        {aiSummaries.map((summary) => (
           <View key={`${summary.period}-${summary.periodKey}`} style={styles.summaryCard}>
             <View style={styles.summaryHeader}>
-              <View>
+              <View style={styles.summaryTitleBox}>
                 <AppText variant="caption" muted>
-                  {summary.label} Summary
+                  {summary.label} AI Summary
                 </AppText>
 
-                <AppText variant="body" style={styles.summaryTitle}>
-                  {getPeriodLabel(summary.periodKey, summary.period)}
+                <AppText variant="body" style={styles.summaryTitle} numberOfLines={2}>
+                  {summary.periodLabel}
                 </AppText>
               </View>
 
-              <View style={[styles.summaryBadge, summary.isReady ? styles.summaryBadgeReady : null]}>
+              <View style={styles.summaryStatusBox}>
+                <Ionicons
+                  name={getAIStatusIcon(summary.status)}
+                  size={16}
+                  color={getAIStatusColor(summary.status, colors)}
+                />
+
                 <AppText
                   variant="caption"
-                  style={[styles.summaryBadgeText, summary.isReady ? styles.summaryBadgeTextReady : null]}
+                  style={[
+                    styles.summaryStatusText,
+                    { color: getAIStatusColor(summary.status, colors) },
+                  ]}
                 >
-                  {summary.isReady ? 'Ready' : 'Waiting'}
+                  {getAIStatusLabel(summary.status)}
                 </AppText>
               </View>
             </View>
 
+            <AppText variant="body" style={styles.aiHeadline}>
+              {summary.headline}
+            </AppText>
+
             <AppText variant="caption" muted style={styles.summaryDescription}>
-              {summary.reason}
+              {summary.summary}
             </AppText>
 
             {summary.isReady ? (
               <View style={styles.summaryMetricRow}>
                 <ReportMetric
-                  label="Deposit"
-                  value={formatCurrency(summary.deposit, tradingAccount.currency)}
-                  color={colors.income}
+                  label="Net P/L"
+                  value={formatCurrency(summary.netProfitLoss, tradingAccount.currency)}
+                  color={summary.netProfitLoss >= 0 ? colors.income : colors.expense}
                   colors={colors}
                 />
 
                 <ReportMetric
-                  label="Withdrawal"
-                  value={formatCurrency(summary.withdrawal, tradingAccount.currency)}
-                  color={colors.expense}
+                  label="Win Rate"
+                  value={`${summary.winRate.toFixed(1)}%`}
+                  color={colors.text}
                   colors={colors}
                 />
 
                 <ReportMetric
-                  label="Net"
-                  value={formatCurrency(summary.net, tradingAccount.currency)}
-                  color={summary.net >= 0 ? colors.income : colors.expense}
+                  label="Issues"
+                  value={`${summary.violationCount}`}
+                  color={summary.violationCount > 0 ? colors.expense : colors.income}
                   colors={colors}
                 />
               </View>
             ) : null}
 
-            <View style={styles.aiNoteCard}>
+            <View style={styles.aiFocusCard}>
               <Ionicons name="sparkles-outline" size={16} color={colors.textMuted} />
 
               <AppText variant="caption" muted style={styles.aiNoteText}>
-                Next phase: AI Summary will use Trade Reports + Plan Compliance to write daily, weekly, monthly, and yearly analysis.
+                {summary.focus}
               </AppText>
+            </View>
+
+            <View style={styles.aiActionList}>
+              {summary.actionItems.map((item, index) => (
+                <View key={`${summary.periodKey}-ai-${index}`} style={styles.aiActionItem}>
+                  <View style={styles.aiActionBullet}>
+                    <AppText variant="caption" style={styles.aiActionBulletText}>
+                      {index + 1}
+                    </AppText>
+                  </View>
+
+                  <AppText variant="caption" muted style={styles.aiActionText}>
+                    {item}
+                  </AppText>
+                </View>
+              ))}
             </View>
           </View>
         ))}
@@ -2479,6 +2664,25 @@ function createStyles(colors: ThemeColors) {
       justifyContent: 'space-between',
       gap: 12,
     },
+    summaryTitleBox: {
+      flex: 1,
+      minWidth: 0,
+    },
+    summaryStatusBox: {
+      borderRadius: 999,
+      backgroundColor: colors.surfaceSoft,
+      borderWidth: 1,
+      borderColor: colors.border,
+      paddingHorizontal: 9,
+      paddingVertical: 5,
+      alignSelf: 'flex-start',
+      flexDirection: 'row',
+      gap: 5,
+      alignItems: 'center',
+    },
+    summaryStatusText: {
+      fontWeight: '900',
+    },
     summaryTitle: {
       color: colors.text,
       fontWeight: '900',
@@ -2508,9 +2712,25 @@ function createStyles(colors: ThemeColors) {
     summaryDescription: {
       lineHeight: 18,
     },
+    aiHeadline: {
+      color: colors.text,
+      fontWeight: '900',
+      lineHeight: 21,
+    },
     summaryMetricRow: {
       flexDirection: 'row',
+      flexWrap: 'wrap',
       gap: 8,
+    },
+    aiFocusCard: {
+      backgroundColor: colors.surfaceSoft,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 16,
+      padding: 10,
+      flexDirection: 'row',
+      gap: 8,
+      alignItems: 'flex-start',
     },
     aiNoteCard: {
       backgroundColor: colors.surfaceSoft,
@@ -2523,6 +2743,33 @@ function createStyles(colors: ThemeColors) {
       alignItems: 'flex-start',
     },
     aiNoteText: {
+      flex: 1,
+      lineHeight: 18,
+    },
+    aiActionList: {
+      gap: 8,
+    },
+    aiActionItem: {
+      flexDirection: 'row',
+      gap: 9,
+      alignItems: 'flex-start',
+    },
+    aiActionBullet: {
+      width: 22,
+      height: 22,
+      borderRadius: 999,
+      backgroundColor: colors.surfaceSoft,
+      borderWidth: 1,
+      borderColor: colors.border,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    aiActionBulletText: {
+      color: colors.text,
+      fontWeight: '900',
+      fontSize: 10,
+    },
+    aiActionText: {
       flex: 1,
       lineHeight: 18,
     },

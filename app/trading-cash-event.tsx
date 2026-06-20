@@ -40,11 +40,7 @@ function getTradingRawAmountFromReal(account: TradingAccount, realAmount: number
   return realAmount;
 }
 
-function getAvailableCurrencies(account: TradingAccount | undefined): Currency[] {
-  if (account?.accountType === 'cent') {
-    return ['USD'];
-  }
-
+function getAvailableCurrencies() {
   return currencies;
 }
 
@@ -87,12 +83,15 @@ export default function TradingCashEventScreen() {
   }, [tradingAccountId, tradingAccounts]);
 
   useEffect(() => {
-    if (tradingAccount?.accountType === 'cent') {
-      setCurrency('USD');
-    } else if (tradingAccount?.currency) {
+    if (brokerWallet?.currency) {
+      setCurrency(brokerWallet.currency);
+      return;
+    }
+
+    if (tradingAccount?.currency) {
       setCurrency(tradingAccount.currency);
     }
-  }, [tradingAccount?.accountType, tradingAccount?.currency]);
+  }, [brokerWallet?.currency, tradingAccount?.currency]);
 
   const parsedAmount = parseNumber(amount);
 
@@ -180,7 +179,7 @@ export default function TradingCashEventScreen() {
           </AppText>
 
           <AppText variant="caption" muted style={styles.infoDescription}>
-            Deposit reduces linked Broker Wallet and increases Trading Account. Withdrawal does the opposite.
+            Choose any input currency. The app converts it into the linked Broker Wallet currency and Trading Account currency.
           </AppText>
         </View>
       </View>
@@ -247,11 +246,11 @@ export default function TradingCashEventScreen() {
 
         <View style={styles.field}>
           <AppText variant="caption" muted style={styles.label}>
-            Currency
+            Input Currency
           </AppText>
 
           <View style={styles.chipRow}>
-            {getAvailableCurrencies(tradingAccount).map((item) => {
+            {getAvailableCurrencies().map((item) => {
               const active = currency === item;
 
               return (
@@ -270,6 +269,13 @@ export default function TradingCashEventScreen() {
               );
             })}
           </View>
+
+          {brokerWallet && tradingAccount ? (
+            <AppText variant="caption" muted style={styles.currencyHelper}>
+              Input will be converted to {brokerWallet.currency} for wallet movement and{' '}
+              {tradingAccount.currency} for trading account movement.
+            </AppText>
+          ) : null}
         </View>
 
         <View style={styles.field}>
@@ -301,11 +307,15 @@ export default function TradingCashEventScreen() {
           {brokerWallet && tradingAccount ? (
             <>
               <AppText variant="caption" muted style={styles.previewLine}>
-                Broker Wallet movement: {formatCurrency(preview.brokerWalletAmount, brokerWallet.currency)}
+                Input amount: {formatCurrency(parsedAmount, currency)}
               </AppText>
 
               <AppText variant="caption" muted style={styles.previewLine}>
-                Trading real movement: {formatCurrency(preview.tradingRealAmount, tradingAccount.currency)}
+                Converted wallet movement: {formatCurrency(preview.brokerWalletAmount, brokerWallet.currency)}
+              </AppText>
+
+              <AppText variant="caption" muted style={styles.previewLine}>
+                Converted trading movement: {formatCurrency(preview.tradingRealAmount, tradingAccount.currency)}
               </AppText>
 
               {tradingAccount.accountType === 'cent' ? (
@@ -515,6 +525,10 @@ function createStyles(colors: ThemeColors) {
     },
     chipTextActive: {
       color: colors.black,
+    },
+    currencyHelper: {
+      marginTop: 8,
+      lineHeight: 18,
     },
     optionList: {
       gap: 9,

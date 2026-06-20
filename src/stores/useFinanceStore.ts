@@ -2401,16 +2401,9 @@ export const useFinanceStore = create<FinanceStore>((set, get) => {
     }
 
     const eventCurrency = resolveTransactionCurrency(
-      tradingAccount.accountType === 'cent' ? 'USD' : payload.currency,
-      tradingAccount.accountType === 'cent' ? 'USD' : tradingAccount.currency
+      payload.currency,
+      brokerWallet.currency || tradingAccount.currency
     );
-
-    if (tradingAccount.accountType === 'cent' && eventCurrency !== 'USD') {
-      return {
-        success: false,
-        message: 'Cent trading account deposit/withdrawal only supports USD.',
-      };
-    }
 
     const exchangeRateSnapshot = createExchangeRateSnapshot(exchangeRates);
 
