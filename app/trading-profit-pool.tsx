@@ -1,7 +1,8 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { AnimatedPressable } from '../src/components/ui/AnimatedPressable';
 import { AppText } from '../src/components/ui/AppText';
 import { Screen } from '../src/components/ui/Screen';
 import { StatCard } from '../src/components/ui/StatCard';
@@ -245,13 +246,13 @@ export default function TradingProfitPoolScreen() {
   return (
     <Screen>
       <View style={styles.header}>
-        <Pressable onPress={() => router.back()} style={styles.backButton}>
+        <AnimatedPressable onPress={() => router.back()} style={styles.backButton}>
           <Ionicons name="chevron-back-outline" size={22} color={colors.text} />
-        </Pressable>
+        </AnimatedPressable>
 
         <View style={styles.headerText}>
           <AppText variant="caption" muted>
-            Trading Journal
+            Profit Pool
           </AppText>
 
           <AppText variant="title" style={styles.title}>
@@ -322,7 +323,7 @@ export default function TradingProfitPoolScreen() {
               const active = periodFilter === filter.value;
 
               return (
-                <Pressable
+                <AnimatedPressable
                   key={filter.value}
                   onPress={() => setPeriodFilter(filter.value)}
                   style={[styles.filterChip, active ? styles.filterChipActive : null]}
@@ -339,7 +340,7 @@ export default function TradingProfitPoolScreen() {
                   >
                     {filter.label}
                   </AppText>
-                </Pressable>
+                </AnimatedPressable>
               );
             })}
           </View>
@@ -351,7 +352,7 @@ export default function TradingProfitPoolScreen() {
 
         <ScrollView horizontal showsHorizontalScrollIndicator={false}>
           <View style={styles.chipRow}>
-            <Pressable
+            <AnimatedPressable
               onPress={() => setSelectedAccountId('all')}
               style={[styles.filterChip, selectedAccountId === 'all' ? styles.filterChipActive : null]}
             >
@@ -370,13 +371,13 @@ export default function TradingProfitPoolScreen() {
               >
                 All accounts
               </AppText>
-            </Pressable>
+            </AnimatedPressable>
 
             {tradingAccounts.map((account) => {
               const active = selectedAccountId === account.id;
 
               return (
-                <Pressable
+                <AnimatedPressable
                   key={account.id}
                   onPress={() => setSelectedAccountId(account.id)}
                   style={[styles.filterChip, active ? styles.filterChipActive : null]}
@@ -394,7 +395,7 @@ export default function TradingProfitPoolScreen() {
                   >
                     {account.name}
                   </AppText>
-                </Pressable>
+                </AnimatedPressable>
               );
             })}
           </View>
@@ -402,15 +403,15 @@ export default function TradingProfitPoolScreen() {
       </View>
 
       <View style={styles.metricGrid}>
-        <StatCard label="Closed Trades" value={`${poolSummary.closedTrades}`} />
+        <StatCard label="Closed" value={`${poolSummary.closedTrades}`} />
         <StatCard label="Win Rate" value={`${poolSummary.winRate.toFixed(0)}%`} />
         <StatCard
-          label="Gross Profit"
+          label="Profit"
           value={formatCurrency(poolSummary.grossProfit, defaultCurrency)}
           tone="income"
         />
         <StatCard
-          label="Gross Loss"
+          label="Loss"
           value={formatCurrency(poolSummary.grossLoss, defaultCurrency)}
           tone={poolSummary.grossLoss > 0 ? 'expense' : undefined}
         />
@@ -419,18 +420,18 @@ export default function TradingProfitPoolScreen() {
       <View style={styles.sectionHeader}>
         <AppText variant="subtitle">Pool Split</AppText>
 
-        <Pressable onPress={resetPercents} style={styles.resetButton}>
+        <AnimatedPressable onPress={resetPercents} style={styles.resetButton}>
           <Ionicons name="refresh-outline" size={15} color={colors.text} />
 
           <AppText variant="caption" style={styles.resetButtonText}>
             Reset
           </AppText>
-        </Pressable>
+        </AnimatedPressable>
       </View>
 
       <View style={styles.totalPercentCard}>
         <AppText variant="caption" muted>
-          Total allocation
+          Allocation
         </AppText>
 
         <AppText
@@ -445,8 +446,8 @@ export default function TradingProfitPoolScreen() {
 
         <AppText variant="caption" muted style={styles.totalPercentHint}>
           {Math.abs(totalPercent - 100) < 0.0001
-            ? 'Allocation is balanced.'
-            : 'Try to keep total allocation at 100%.'}
+            ? 'Balanced.'
+            : 'Keep at 100%.'}
         </AppText>
       </View>
 
@@ -521,7 +522,7 @@ export default function TradingProfitPoolScreen() {
 function createStyles(colors: ThemeColors) {
   return StyleSheet.create({
     header: {
-      marginBottom: 22,
+      marginBottom: 18,
       flexDirection: 'row',
       alignItems: 'center',
       gap: 14,
@@ -532,7 +533,7 @@ function createStyles(colors: ThemeColors) {
       borderRadius: 16,
       backgroundColor: colors.surface,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       alignItems: 'center',
       justifyContent: 'center',
     },
@@ -544,12 +545,17 @@ function createStyles(colors: ThemeColors) {
       marginTop: 4,
     },
     heroCard: {
-      backgroundColor: colors.surface,
+      backgroundColor: colors.surfaceRaised,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       borderRadius: 28,
-      padding: 18,
-      gap: 12,
+      padding: 16,
+      gap: 10,
+      shadowColor: colors.shadow,
+      shadowOpacity: 0.12,
+      shadowRadius: 12,
+      shadowOffset: { width: 0, height: 7 },
+      elevation: 2,
     },
     heroTop: {
       flexDirection: 'row',
@@ -567,14 +573,14 @@ function createStyles(colors: ThemeColors) {
       lineHeight: 35,
     },
     heroDescription: {
-      marginTop: 4,
-      lineHeight: 18,
+      marginTop: 3,
+      lineHeight: 16,
     },
     statusBadge: {
       borderRadius: 999,
       backgroundColor: colors.surfaceSoft,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       paddingHorizontal: 10,
       paddingVertical: 7,
       flexDirection: 'row',
@@ -602,7 +608,7 @@ function createStyles(colors: ThemeColors) {
       borderRadius: 999,
       backgroundColor: colors.surface,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       paddingHorizontal: 12,
       flexDirection: 'row',
       alignItems: 'center',
@@ -638,7 +644,7 @@ function createStyles(colors: ThemeColors) {
       borderRadius: 13,
       backgroundColor: colors.surface,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       paddingHorizontal: 10,
       flexDirection: 'row',
       alignItems: 'center',
@@ -651,9 +657,9 @@ function createStyles(colors: ThemeColors) {
     totalPercentCard: {
       backgroundColor: colors.surface,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       borderRadius: 20,
-      padding: 14,
+      padding: 13,
     },
     totalPercentValue: {
       marginTop: 5,
@@ -669,7 +675,7 @@ function createStyles(colors: ThemeColors) {
     bucketCard: {
       backgroundColor: colors.surface,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       borderRadius: 22,
       padding: 14,
       gap: 13,
@@ -685,7 +691,7 @@ function createStyles(colors: ThemeColors) {
       borderRadius: 16,
       backgroundColor: colors.surfaceSoft,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       alignItems: 'center',
       justifyContent: 'center',
     },
@@ -698,8 +704,8 @@ function createStyles(colors: ThemeColors) {
       fontWeight: '900',
     },
     bucketDescription: {
-      marginTop: 4,
-      lineHeight: 18,
+      marginTop: 3,
+      lineHeight: 16,
     },
     percentInputBox: {
       minWidth: 70,
@@ -707,7 +713,7 @@ function createStyles(colors: ThemeColors) {
       borderRadius: 15,
       backgroundColor: colors.surfaceSoft,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       paddingHorizontal: 9,
       flexDirection: 'row',
       alignItems: 'center',
@@ -726,7 +732,7 @@ function createStyles(colors: ThemeColors) {
       borderRadius: 16,
       backgroundColor: colors.surfaceSoft,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       padding: 12,
     },
     bucketAmount: {
@@ -737,7 +743,7 @@ function createStyles(colors: ThemeColors) {
       marginBottom: 8,
       backgroundColor: colors.surface,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       borderRadius: 18,
       padding: 13,
       flexDirection: 'row',

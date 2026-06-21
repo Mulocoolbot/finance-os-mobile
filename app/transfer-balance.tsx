@@ -6,6 +6,7 @@ import { AppText } from '../src/components/ui/AppText';
 import { Screen } from '../src/components/ui/Screen';
 import { ThemeColors } from '../src/constants/colors';
 import { useThemeColors } from '../src/hooks/useThemeColors';
+import { useAppToast } from '../src/components/ui/AppToast';
 import { useFinanceStore } from '../src/stores/useFinanceStore';
 import { Account, Currency } from '../src/types/finance';
 import { formatCurrency } from '../src/utils/currency';
@@ -42,6 +43,7 @@ function createFinanceOption(account: Account): TransferOption {
 export default function TransferBalanceScreen() {
   const colors = useThemeColors();
   const styles = createStyles(colors);
+  const toast = useAppToast();
 
   const accounts = useFinanceStore((state) => state.accounts);
   const transferBalance = useFinanceStore((state) => state.transferBalance);
@@ -72,11 +74,13 @@ export default function TransferBalanceScreen() {
       note,
     });
 
-    Alert.alert('Finance OS Mobile', result.message);
-
-    if (result.success) {
-      router.back();
+    if (!result.success) {
+      toast.showError('Could Not Transfer', result.message);
+      return;
     }
+
+    toast.showSuccess('Transfer Saved', result.message);
+    router.back();
   }
 
   return (

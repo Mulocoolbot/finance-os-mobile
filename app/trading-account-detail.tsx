@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { AnimatedPressable } from '../src/components/ui/AnimatedPressable';
 import { AppText } from '../src/components/ui/AppText';
 import { Screen } from '../src/components/ui/Screen';
 import { ThemeColors } from '../src/constants/colors';
@@ -1002,7 +1003,7 @@ export default function TradingAccountDetailScreen() {
 
         <View style={styles.headerText}>
           <AppText variant="caption" muted>
-            Trading Account Journal
+            Account
           </AppText>
 
           <AppText variant="title" numberOfLines={1}>
@@ -1010,19 +1011,19 @@ export default function TradingAccountDetailScreen() {
           </AppText>
         </View>
 
-        <Pressable
+        <AnimatedPressable
           onPress={() => router.push(`/edit-trading-account?tradingAccountId=${tradingAccount.id}` as any)}
           style={styles.editButton}
         >
           <Ionicons name="create-outline" size={18} color={colors.black} />
-        </Pressable>
+        </AnimatedPressable>
       </View>
 
       <View style={styles.heroCard}>
         <View style={styles.heroTop}>
           <View style={styles.heroTextBox}>
             <AppText variant="caption" muted>
-              Account Growth • {periodLabel}
+              Growth • {periodLabel}
             </AppText>
 
             <AppText variant="title" style={styles.heroValue}>
@@ -1030,7 +1031,7 @@ export default function TradingAccountDetailScreen() {
             </AppText>
 
             <AppText variant="caption" muted style={styles.heroSubValue}>
-              Latest chart value {formatCurrency(latestGrowthValue, tradingAccount.currency)}
+              Latest {formatCurrency(latestGrowthValue, tradingAccount.currency)}
             </AppText>
           </View>
 
@@ -1105,7 +1106,7 @@ export default function TradingAccountDetailScreen() {
             </AppText>
           </View>
 
-          <Pressable
+          <AnimatedPressable
             onPress={() =>
               router.push(`/trading-plan?tradingAccountId=${tradingAccount.id}` as any)
             }
@@ -1114,18 +1115,18 @@ export default function TradingAccountDetailScreen() {
             <AppText variant="caption" style={styles.planActionText}>
               {tradingPlan ? 'Edit' : 'Create'}
             </AppText>
-          </Pressable>
+          </AnimatedPressable>
         </View>
 
         <View style={styles.planMetricGrid}>
           <PlanMetric
-            label="Daily Max Loss"
+            label="Max Loss"
             value={getTradingPlanRiskLimit(tradingPlan, tradingAccount.currency)}
             colors={colors}
           />
 
           <PlanMetric
-            label="Daily Target"
+            label="Target"
             value={
               tradingPlan
                 ? `${tradingPlan.dailyProfitTargetPercent || 0}% / ${formatCurrency(
@@ -1138,7 +1139,7 @@ export default function TradingAccountDetailScreen() {
           />
 
           <PlanMetric
-            label="Risk / Trade"
+            label="Risk"
             value={tradingPlan ? `${tradingPlan.riskPerTradePercent}%` : 'No plan'}
             colors={colors}
           />
@@ -1150,7 +1151,7 @@ export default function TradingAccountDetailScreen() {
           />
 
           <PlanMetric
-            label="Minimum RR"
+            label="Min RR"
             value={tradingPlan ? `1:${tradingPlan.minimumRewardRiskRatio}` : 'No plan'}
             colors={colors}
           />
@@ -1158,7 +1159,7 @@ export default function TradingAccountDetailScreen() {
 
         <View style={styles.planNoteBox}>
           <AppText variant="caption" muted>
-            Allowed pairs
+            Pairs
           </AppText>
 
           <AppText variant="caption" style={styles.planNoteText} numberOfLines={2}>
@@ -1168,7 +1169,8 @@ export default function TradingAccountDetailScreen() {
       </View>
 
       <View style={styles.actionRow}>
-        <Pressable
+        <AnimatedPressable
+          containerStyle={styles.actionButtonMotion}
           onPress={() =>
             router.push(`/trading-cash-event?tradingAccountId=${tradingAccount.id}&eventType=deposit` as any)
           }
@@ -1179,9 +1181,10 @@ export default function TradingAccountDetailScreen() {
           <AppText variant="body" style={styles.primaryActionText}>
             Deposit
           </AppText>
-        </Pressable>
+        </AnimatedPressable>
 
-        <Pressable
+        <AnimatedPressable
+          containerStyle={styles.actionButtonMotion}
           onPress={() =>
             router.push(`/trading-cash-event?tradingAccountId=${tradingAccount.id}&eventType=withdrawal` as any)
           }
@@ -1192,21 +1195,21 @@ export default function TradingAccountDetailScreen() {
           <AppText variant="body" style={styles.secondaryActionText}>
             Withdraw
           </AppText>
-        </Pressable>
+        </AnimatedPressable>
       </View>
 
       <View style={styles.tradeActionCard}>
         <View style={styles.tradeActionTextBox}>
           <AppText variant="caption" muted>
-            Trade History
+            Trades
           </AppText>
 
           <AppText variant="body" style={styles.tradeActionTitle}>
-            Record your position result
+            Add position result
           </AppText>
         </View>
 
-        <Pressable
+        <AnimatedPressable
           onPress={() =>
             router.push(`/add-trading-trade?tradingAccountId=${tradingAccount.id}` as any)
           }
@@ -1217,11 +1220,11 @@ export default function TradingAccountDetailScreen() {
           <AppText variant="caption" style={styles.tradeActionButtonText}>
             Add Trade
           </AppText>
-        </Pressable>
+        </AnimatedPressable>
       </View>
 
       <View style={styles.sectionHeader}>
-        <AppText variant="subtitle">Report Period</AppText>
+        <AppText variant="subtitle">Cash Reports</AppText>
         <AppText variant="caption" muted>
           {periodReports.length} group{periodReports.length === 1 ? '' : 's'}
         </AppText>
@@ -1232,7 +1235,7 @@ export default function TradingAccountDetailScreen() {
           const active = period === item.value;
 
           return (
-            <Pressable
+            <AnimatedPressable
               key={item.value}
               onPress={() => setPeriod(item.value)}
               style={[styles.periodChip, active ? styles.periodChipActive : null]}
@@ -1243,7 +1246,7 @@ export default function TradingAccountDetailScreen() {
               >
                 {item.label}
               </AppText>
-            </Pressable>
+            </AnimatedPressable>
           );
         })}
       </View>
@@ -1254,7 +1257,7 @@ export default function TradingAccountDetailScreen() {
             <Ionicons name="bar-chart-outline" size={30} color={colors.textMuted} />
 
             <AppText variant="body" muted style={styles.emptyDescription}>
-              No deposit or withdrawal report yet for this account.
+              No cash report yet.
             </AppText>
           </View>
         ) : null}
@@ -1306,7 +1309,7 @@ export default function TradingAccountDetailScreen() {
       </View>
 
       <View style={styles.sectionHeader}>
-        <AppText variant="subtitle">Trade Performance</AppText>
+        <AppText variant="subtitle">Performance</AppText>
         <AppText variant="caption" muted>
           {tradingPerformance.closedTrades} closed
         </AppText>
@@ -1343,7 +1346,7 @@ export default function TradingAccountDetailScreen() {
       </View>
 
       <View style={styles.sectionHeader}>
-        <AppText variant="subtitle">Plan Compliance</AppText>
+        <AppText variant="subtitle">Compliance</AppText>
         <AppText variant="caption" muted>
           {period}
         </AppText>
@@ -1467,7 +1470,7 @@ export default function TradingAccountDetailScreen() {
       </View>
 
       <View style={styles.sectionHeader}>
-        <AppText variant="subtitle">Trade History</AppText>
+        <AppText variant="subtitle">Trades</AppText>
         <AppText variant="caption" muted>
           {accountTrades.length} trade{accountTrades.length === 1 ? '' : 's'}
         </AppText>
@@ -2039,7 +2042,7 @@ function ReportMetric({
 function createStyles(colors: ThemeColors) {
   return StyleSheet.create({
     header: {
-      marginBottom: 22,
+      marginBottom: 18,
       flexDirection: 'row',
       alignItems: 'center',
       gap: 14,
@@ -2050,7 +2053,7 @@ function createStyles(colors: ThemeColors) {
       borderRadius: 16,
       backgroundColor: colors.surface,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       alignItems: 'center',
       justifyContent: 'center',
     },
@@ -2067,12 +2070,17 @@ function createStyles(colors: ThemeColors) {
       minWidth: 0,
     },
     heroCard: {
-      backgroundColor: colors.surface,
+      backgroundColor: colors.surfaceRaised,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       borderRadius: 28,
-      padding: 16,
-      marginBottom: 16,
+      padding: 15,
+      marginBottom: 14,
+      shadowColor: colors.shadow,
+      shadowOpacity: 0.14,
+      shadowRadius: 14,
+      shadowOffset: { width: 0, height: 8 },
+      elevation: 2,
       gap: 14,
     },
     heroTop: {
@@ -2095,9 +2103,9 @@ function createStyles(colors: ThemeColors) {
     },
     typeBadge: {
       borderRadius: 999,
-      backgroundColor: colors.surfaceSoft,
+      backgroundColor: colors.primarySoft,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       paddingHorizontal: 10,
       paddingVertical: 6,
     },
@@ -2159,7 +2167,7 @@ function createStyles(colors: ThemeColors) {
       borderRadius: 16,
       backgroundColor: colors.surface,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       paddingHorizontal: 12,
       paddingVertical: 9,
       justifyContent: 'center',
@@ -2192,7 +2200,7 @@ function createStyles(colors: ThemeColors) {
       minWidth: 0,
       backgroundColor: colors.surface,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       borderRadius: 16,
       paddingHorizontal: 10,
       paddingVertical: 9,
@@ -2214,7 +2222,7 @@ function createStyles(colors: ThemeColors) {
       minWidth: 140,
       backgroundColor: colors.surface,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       borderRadius: 22,
       padding: 14,
       gap: 7,
@@ -2225,7 +2233,7 @@ function createStyles(colors: ThemeColors) {
       borderRadius: 13,
       backgroundColor: colors.surfaceSoft,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       alignItems: 'center',
       justifyContent: 'center',
       marginBottom: 2,
@@ -2238,7 +2246,7 @@ function createStyles(colors: ThemeColors) {
     profileCard: {
       backgroundColor: colors.surface,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       borderRadius: 24,
       padding: 15,
       gap: 12,
@@ -2246,7 +2254,7 @@ function createStyles(colors: ThemeColors) {
     },
     infoLine: {
       borderBottomWidth: 1,
-      borderBottomColor: colors.border,
+      borderBottomColor: colors.borderSoft,
       paddingBottom: 11,
       gap: 4,
     },
@@ -2257,7 +2265,7 @@ function createStyles(colors: ThemeColors) {
     planCard: {
       backgroundColor: colors.surface,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       borderRadius: 24,
       padding: 15,
       gap: 14,
@@ -2274,7 +2282,7 @@ function createStyles(colors: ThemeColors) {
       borderRadius: 15,
       backgroundColor: colors.surfaceSoft,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       alignItems: 'center',
       justifyContent: 'center',
     },
@@ -2310,7 +2318,7 @@ function createStyles(colors: ThemeColors) {
       minWidth: 130,
       backgroundColor: colors.surfaceSoft,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       borderRadius: 16,
       padding: 10,
       gap: 4,
@@ -2322,7 +2330,7 @@ function createStyles(colors: ThemeColors) {
     planNoteBox: {
       backgroundColor: colors.surfaceSoft,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       borderRadius: 16,
       padding: 10,
       gap: 4,
@@ -2335,7 +2343,10 @@ function createStyles(colors: ThemeColors) {
     actionRow: {
       flexDirection: 'row',
       gap: 10,
-      marginBottom: 18,
+      marginBottom: 14,
+    },
+    actionButtonMotion: {
+      flex: 1,
     },
     primaryAction: {
       flex: 1,
@@ -2357,7 +2368,7 @@ function createStyles(colors: ThemeColors) {
       borderRadius: 18,
       backgroundColor: colors.surface,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       alignItems: 'center',
       justifyContent: 'center',
       flexDirection: 'row',
@@ -2370,7 +2381,7 @@ function createStyles(colors: ThemeColors) {
     tradeActionCard: {
       backgroundColor: colors.surface,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       borderRadius: 22,
       padding: 13,
       flexDirection: 'row',
@@ -2413,7 +2424,7 @@ function createStyles(colors: ThemeColors) {
       minWidth: 130,
       backgroundColor: colors.surface,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       borderRadius: 18,
       padding: 12,
       gap: 4,
@@ -2424,7 +2435,7 @@ function createStyles(colors: ThemeColors) {
     complianceHeroCard: {
       backgroundColor: colors.surface,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       borderRadius: 24,
       padding: 14,
       flexDirection: 'row',
@@ -2438,7 +2449,7 @@ function createStyles(colors: ThemeColors) {
       borderRadius: 16,
       backgroundColor: colors.surfaceSoft,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       alignItems: 'center',
       justifyContent: 'center',
     },
@@ -2461,7 +2472,7 @@ function createStyles(colors: ThemeColors) {
     complianceReportCard: {
       backgroundColor: colors.surface,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       borderRadius: 24,
       padding: 14,
       gap: 12,
@@ -2485,7 +2496,7 @@ function createStyles(colors: ThemeColors) {
       borderRadius: 999,
       backgroundColor: colors.surfaceSoft,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       paddingHorizontal: 10,
       paddingVertical: 6,
     },
@@ -2524,7 +2535,7 @@ function createStyles(colors: ThemeColors) {
     tradeCard: {
       backgroundColor: colors.surface,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       borderRadius: 22,
       padding: 13,
       flexDirection: 'row',
@@ -2537,7 +2548,7 @@ function createStyles(colors: ThemeColors) {
       borderRadius: 16,
       backgroundColor: colors.surfaceSoft,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       alignItems: 'center',
       justifyContent: 'center',
     },
@@ -2579,7 +2590,7 @@ function createStyles(colors: ThemeColors) {
       borderRadius: 999,
       backgroundColor: colors.surface,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       paddingHorizontal: 12,
       justifyContent: 'center',
     },
@@ -2601,7 +2612,7 @@ function createStyles(colors: ThemeColors) {
     reportCard: {
       backgroundColor: colors.surface,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       borderRadius: 22,
       padding: 14,
       gap: 12,
@@ -2620,7 +2631,7 @@ function createStyles(colors: ThemeColors) {
       borderRadius: 999,
       backgroundColor: colors.surfaceSoft,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       paddingHorizontal: 9,
       paddingVertical: 5,
       alignSelf: 'flex-start',
@@ -2640,7 +2651,7 @@ function createStyles(colors: ThemeColors) {
       borderRadius: 16,
       backgroundColor: colors.surfaceSoft,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       padding: 10,
       gap: 4,
     },
@@ -2654,7 +2665,7 @@ function createStyles(colors: ThemeColors) {
     summaryCard: {
       backgroundColor: colors.surface,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       borderRadius: 22,
       padding: 14,
       gap: 12,
@@ -2672,7 +2683,7 @@ function createStyles(colors: ThemeColors) {
       borderRadius: 999,
       backgroundColor: colors.surfaceSoft,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       paddingHorizontal: 9,
       paddingVertical: 5,
       alignSelf: 'flex-start',
@@ -2692,7 +2703,7 @@ function createStyles(colors: ThemeColors) {
       borderRadius: 999,
       backgroundColor: colors.surfaceSoft,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       paddingHorizontal: 9,
       paddingVertical: 5,
       alignSelf: 'flex-start',
@@ -2725,7 +2736,7 @@ function createStyles(colors: ThemeColors) {
     aiFocusCard: {
       backgroundColor: colors.surfaceSoft,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       borderRadius: 16,
       padding: 10,
       flexDirection: 'row',
@@ -2735,7 +2746,7 @@ function createStyles(colors: ThemeColors) {
     aiNoteCard: {
       backgroundColor: colors.surfaceSoft,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       borderRadius: 16,
       padding: 10,
       flexDirection: 'row',
@@ -2760,7 +2771,7 @@ function createStyles(colors: ThemeColors) {
       borderRadius: 999,
       backgroundColor: colors.surfaceSoft,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       alignItems: 'center',
       justifyContent: 'center',
     },
@@ -2780,7 +2791,7 @@ function createStyles(colors: ThemeColors) {
     eventCard: {
       backgroundColor: colors.surface,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       borderRadius: 22,
       padding: 13,
       flexDirection: 'row',
@@ -2793,7 +2804,7 @@ function createStyles(colors: ThemeColors) {
       borderRadius: 16,
       backgroundColor: colors.surfaceSoft,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       alignItems: 'center',
       justifyContent: 'center',
     },
@@ -2819,7 +2830,7 @@ function createStyles(colors: ThemeColors) {
     emptyCard: {
       backgroundColor: colors.surface,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       borderRadius: 22,
       padding: 20,
       alignItems: 'center',

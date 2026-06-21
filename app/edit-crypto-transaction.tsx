@@ -304,6 +304,22 @@ export default function EditCryptoTransactionScreen() {
       ) : (
         <>
           <View style={styles.card}>
+            <View style={styles.sectionMiniHeader}>
+              <View>
+                <AppText variant="caption" muted>
+                  Step 1
+                </AppText>
+
+                <AppText variant="subtitle" style={styles.sectionMiniTitle}>
+                  Crypto transaction detail
+                </AppText>
+              </View>
+
+              <AppText variant="caption" muted style={styles.sectionMiniHint}>
+                Title & category
+              </AppText>
+            </View>
+
             <View style={styles.field}>
               <AppText variant="caption" muted style={styles.label}>
                 Transaction Title
@@ -331,6 +347,22 @@ export default function EditCryptoTransactionScreen() {
               />
             </View>
 
+            <View style={styles.sectionMiniHeader}>
+              <View>
+                <AppText variant="caption" muted>
+                  Step 2
+                </AppText>
+
+                <AppText variant="subtitle" style={styles.sectionMiniTitle}>
+                  Quantity correction
+                </AppText>
+              </View>
+
+              <AppText variant="caption" muted style={styles.sectionMiniHint}>
+                Rate locked
+              </AppText>
+            </View>
+
             <NumericAmountInput
               label={`Quantity (${getCryptoSymbol(transaction)})`}
               value={quantity}
@@ -342,6 +374,22 @@ export default function EditCryptoTransactionScreen() {
               quickValues={['0.0001', '0.001', '0.01', '0.1', '1']}
               helperText="Rate is locked. Amount will be recalculated using the stored transaction rate."
             />
+
+            <View style={styles.sectionMiniHeader}>
+              <View>
+                <AppText variant="caption" muted>
+                  Step 3
+                </AppText>
+
+                <AppText variant="subtitle" style={styles.sectionMiniTitle}>
+                  Transaction date
+                </AppText>
+              </View>
+
+              <AppText variant="caption" muted style={styles.sectionMiniHint}>
+                Calendar
+              </AppText>
+            </View>
 
             <View style={styles.calendarCard}>
               <View style={styles.calendarHeader}>
@@ -415,6 +463,22 @@ export default function EditCryptoTransactionScreen() {
               </View>
             </View>
 
+            <View style={styles.sectionMiniHeader}>
+              <View>
+                <AppText variant="caption" muted>
+                  Step 4
+                </AppText>
+
+                <AppText variant="subtitle" style={styles.sectionMiniTitle}>
+                  Note & save
+                </AppText>
+              </View>
+
+              <AppText variant="caption" muted style={styles.sectionMiniHint}>
+                Final
+              </AppText>
+            </View>
+
             <View style={styles.field}>
               <AppText variant="caption" muted style={styles.label}>
                 Note
@@ -442,6 +506,8 @@ export default function EditCryptoTransactionScreen() {
           </View>
 
           <Pressable onPress={handleSave} style={styles.saveButton}>
+            <Ionicons name="checkmark-circle-outline" size={19} color={colors.black} />
+
             <AppText variant="body" style={styles.saveButtonText}>
               Save Crypto Details
             </AppText>
@@ -545,6 +611,21 @@ function createStyles(colors: ThemeColors) {
       padding: 16,
       gap: 16,
       marginBottom: 14,
+    },
+    sectionMiniHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'flex-end',
+      gap: 12,
+      marginTop: 2,
+      marginBottom: -2,
+    },
+    sectionMiniTitle: {
+      marginTop: 3,
+      color: colors.text,
+    },
+    sectionMiniHint: {
+      fontWeight: '900',
     },
     field: {
       gap: 8,
@@ -741,6 +822,8 @@ function createStyles(colors: ThemeColors) {
       backgroundColor: colors.primary,
       alignItems: 'center',
       justifyContent: 'center',
+      flexDirection: 'row',
+      gap: 8,
       paddingHorizontal: 16,
     },
     saveButtonText: {

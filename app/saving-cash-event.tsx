@@ -7,6 +7,7 @@ import { NumericAmountInput } from '../src/components/ui/NumericAmountInput';
 import { Screen } from '../src/components/ui/Screen';
 import { ThemeColors } from '../src/constants/colors';
 import { useThemeColors } from '../src/hooks/useThemeColors';
+import { useAppToast } from '../src/components/ui/AppToast';
 import { useFinanceStore } from '../src/stores/useFinanceStore';
 import { Account, Currency } from '../src/types/finance';
 import { formatCurrency } from '../src/utils/currency';
@@ -28,6 +29,7 @@ function getModeLabel(mode: 'deposit' | 'withdrawal') {
 export default function SavingCashEventScreen() {
   const colors = useThemeColors();
   const styles = createStyles(colors);
+  const toast = useAppToast();
   const params = useLocalSearchParams<{
     savingGoalId?: string;
     mode?: string;
@@ -84,12 +86,12 @@ export default function SavingCashEventScreen() {
 
   function handleSubmit() {
     if (!savingGoal || !savingAccount) {
-      Alert.alert('Finance OS Mobile', 'Saving goal not found.');
+      toast.showWarning('Saving Goal Missing', 'Saving goal not found.');
       return;
     }
 
     if (!linkedAccount) {
-      Alert.alert('Finance OS Mobile', 'Linked account not found.');
+      toast.showWarning('Linked Account Missing', 'Linked account not found.');
       return;
     }
 
@@ -108,11 +110,13 @@ export default function SavingCashEventScreen() {
         ? savingDeposit(payload)
         : savingWithdrawal(payload);
 
-    Alert.alert('Finance OS Mobile', result.message);
-
-    if (result.success) {
-      router.back();
+    if (!result.success) {
+      toast.showError('Could Not Save Saving Movement', result.message);
+      return;
     }
+
+    toast.showSuccess(mode === 'deposit' ? 'Saving Deposit Saved' : 'Saving Withdrawal Saved', result.message);
+    router.back();
   }
 
   if (!savingGoal || !savingAccount) {

@@ -7,6 +7,7 @@ import { NumericAmountInput } from '../src/components/ui/NumericAmountInput';
 import { Screen } from '../src/components/ui/Screen';
 import { ThemeColors } from '../src/constants/colors';
 import { useThemeColors } from '../src/hooks/useThemeColors';
+import { useAppToast } from '../src/components/ui/AppToast';
 import { fetchInvestmentPriceForHolding, isPriceSyncSupportedHolding } from '../src/services/investmentPriceSync';
 import { useFinanceStore } from '../src/stores/useFinanceStore';
 import { Currency, InvestmentAssetType, InvestmentHolding } from '../src/types/finance';
@@ -64,6 +65,7 @@ function makeTempHolding({
 export default function BuyInvestmentAssetScreen() {
   const colors = useThemeColors();
   const styles = createStyles(colors);
+  const toast = useAppToast();
   const params = useLocalSearchParams<{
     pickedName?: string;
     pickedSymbol?: string;
@@ -238,7 +240,7 @@ export default function BuyInvestmentAssetScreen() {
 
   function handleSubmit() {
     if (!canSubmit || !selectedAccount) {
-      Alert.alert('Check Buy Order', 'Please complete account, asset, quantity, and buy price.');
+      toast.showWarning('Check Buy Order', 'Please complete account, asset, quantity, and buy price.');
       return;
     }
 
@@ -255,11 +257,13 @@ export default function BuyInvestmentAssetScreen() {
       provider: priceProvider || undefined,
     });
 
-    Alert.alert('Finance OS Mobile', result.message);
-
-    if (result.success) {
-      router.back();
+    if (!result.success) {
+      toast.showError('Could Not Buy Asset', result.message);
+      return;
     }
+
+    toast.showSuccess('Asset Bought', result.message);
+    router.back();
   }
 
   return (

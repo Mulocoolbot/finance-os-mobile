@@ -2,10 +2,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { Alert, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { AnimatedPressable } from '../src/components/ui/AnimatedPressable';
 import { AppText } from '../src/components/ui/AppText';
 import { Screen } from '../src/components/ui/Screen';
 import { ThemeColors } from '../src/constants/colors';
 import { useThemeColors } from '../src/hooks/useThemeColors';
+import { useAppToast } from '../src/components/ui/AppToast';
 import {
   TradingTradeDirection,
   TradingTradeStatus,
@@ -105,6 +107,7 @@ function getRealBalance(account: {
 export default function AddTradingTradeScreen() {
   const colors = useThemeColors();
   const styles = createStyles(colors);
+  const toast = useAppToast();
   const params = useLocalSearchParams<{ tradingAccountId?: string; tradeId?: string }>();
 
   const tradingAccounts = useFinanceStore((state) => state.tradingAccounts);
@@ -258,11 +261,13 @@ export default function AddTradingTradeScreen() {
           })
         : addTradingTrade(payload);
 
-    Alert.alert('Finance OS Mobile', result.message);
-
-    if (result.success) {
-      router.back();
+    if (!result.success) {
+      toast.showError('Could Not Save Trade', result.message);
+      return;
     }
+
+    toast.showSuccess(isEditing ? 'Trade Updated' : 'Trade Saved', result.message);
+    router.back();
   }
 
   return (
@@ -295,7 +300,7 @@ export default function AddTradingTradeScreen() {
 
           <View style={styles.previewTitleBox}>
             <AppText variant="caption" muted>
-              Trade Preview
+              Preview
             </AppText>
 
             <AppText variant="subtitle" style={styles.previewTitle} numberOfLines={1}>
@@ -340,7 +345,7 @@ export default function AddTradingTradeScreen() {
 
           <View style={styles.previewMetric}>
             <AppText variant="caption" muted>
-              Risk Preview
+              Risk
             </AppText>
 
             <AppText variant="body" style={styles.previewValue} numberOfLines={1}>
@@ -359,12 +364,12 @@ export default function AddTradingTradeScreen() {
             </AppText>
 
             <AppText variant="subtitle" style={styles.sectionMiniTitle}>
-              Status & direction
+              Status & Direction
             </AppText>
           </View>
 
           <AppText variant="caption" muted style={styles.sectionMiniHint}>
-            Trade flow
+            Flow
           </AppText>
         </View>
 
@@ -393,7 +398,7 @@ export default function AddTradingTradeScreen() {
         {tradingPlan && tradingPlan.allowedPairs.length > 0 ? (
           <View style={styles.field}>
             <AppText variant="caption" muted style={styles.label}>
-              Plan Pairs
+              Pairs
             </AppText>
 
             <View style={styles.chipRow}>
@@ -501,7 +506,7 @@ export default function AddTradingTradeScreen() {
               label="Gross P/L"
               value={grossProfitLoss}
               onChangeText={setGrossProfitLoss}
-              placeholder="profit positive, loss negative"
+              placeholder="profit / loss"
               keyboardType="decimal-pad"
               suffix={tradingAccount.currency}
               colors={colors}
@@ -653,19 +658,19 @@ export default function AddTradingTradeScreen() {
           label="Note"
           value={note}
           onChangeText={setNote}
-          placeholder="What happened in this trade?"
+          placeholder="Trade notes"
           multiline
           colors={colors}
         />
       </View>
 
-      <Pressable onPress={handleSave} style={styles.saveButton}>
-        <Ionicons name="save-outline" size={18} color={colors.black} />
+      <AnimatedPressable containerStyle={styles.fullWidthMotion} onPress={handleSave} style={styles.saveButton}>
+        <Ionicons name="checkmark-circle-outline" size={19} color={colors.black} />
 
         <AppText variant="body" style={styles.saveButtonText}>
           {isEditing ? 'Update Trade' : 'Save Trade'}
         </AppText>
-      </Pressable>
+      </AnimatedPressable>
     </Screen>
   );
 }
@@ -684,14 +689,14 @@ function Chip({
   const styles = createStyles(colors);
 
   return (
-    <Pressable onPress={onPress} style={[styles.chip, active ? styles.chipActive : null]}>
+    <AnimatedPressable onPress={onPress} style={[styles.chip, active ? styles.chipActive : null]}>
       <AppText
         variant="caption"
         style={[styles.chipText, active ? styles.chipTextActive : null]}
       >
         {label}
       </AppText>
-    </Pressable>
+    </AnimatedPressable>
   );
 }
 
@@ -789,7 +794,7 @@ function TextField({
 function createStyles(colors: ThemeColors) {
   return StyleSheet.create({
     header: {
-      marginBottom: 22,
+      marginBottom: 18,
       flexDirection: 'row',
       alignItems: 'center',
       gap: 14,
@@ -800,7 +805,7 @@ function createStyles(colors: ThemeColors) {
       borderRadius: 16,
       backgroundColor: colors.surface,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       alignItems: 'center',
       justifyContent: 'center',
     },
@@ -809,13 +814,18 @@ function createStyles(colors: ThemeColors) {
       minWidth: 0,
     },
     previewCard: {
-      backgroundColor: colors.surface,
+      backgroundColor: colors.surfaceRaised,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       borderRadius: 24,
       padding: 14,
-      gap: 12,
-      marginBottom: 16,
+      gap: 11,
+      marginBottom: 14,
+      shadowColor: colors.shadow,
+      shadowOpacity: 0.12,
+      shadowRadius: 12,
+      shadowOffset: { width: 0, height: 7 },
+      elevation: 2,
     },
     previewHeader: {
       flexDirection: 'row',
@@ -828,7 +838,7 @@ function createStyles(colors: ThemeColors) {
       borderRadius: 17,
       backgroundColor: colors.surfaceSoft,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       alignItems: 'center',
       justifyContent: 'center',
     },
@@ -849,7 +859,7 @@ function createStyles(colors: ThemeColors) {
       borderRadius: 999,
       backgroundColor: colors.surfaceSoft,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       paddingHorizontal: 9,
       flexDirection: 'row',
       alignItems: 'center',
@@ -868,7 +878,7 @@ function createStyles(colors: ThemeColors) {
       flex: 1,
       backgroundColor: colors.surfaceSoft,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       borderRadius: 17,
       padding: 11,
       gap: 4,
@@ -880,11 +890,11 @@ function createStyles(colors: ThemeColors) {
     formCard: {
       backgroundColor: colors.surface,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       borderRadius: 24,
-      padding: 16,
-      gap: 15,
-      marginBottom: 16,
+      padding: 14,
+      gap: 13,
+      marginBottom: 14,
     },
     sectionMiniHeader: {
       flexDirection: 'row',
@@ -917,7 +927,7 @@ function createStyles(colors: ThemeColors) {
       borderRadius: 999,
       backgroundColor: colors.surfaceSoft,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       paddingHorizontal: 12,
       alignItems: 'center',
       justifyContent: 'center',
@@ -946,7 +956,7 @@ function createStyles(colors: ThemeColors) {
       borderRadius: 18,
       backgroundColor: colors.surfaceSoft,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       paddingHorizontal: 13,
       flexDirection: 'row',
       alignItems: 'center',
@@ -976,8 +986,11 @@ function createStyles(colors: ThemeColors) {
     inputSuffix: {
       fontWeight: '900',
     },
+    fullWidthMotion: {
+      alignSelf: 'stretch',
+    },
     saveButton: {
-      minHeight: 56,
+      minHeight: 54,
       borderRadius: 20,
       backgroundColor: colors.primary,
       alignItems: 'center',
@@ -994,7 +1007,7 @@ function createStyles(colors: ThemeColors) {
     emptyCard: {
       backgroundColor: colors.surface,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       borderRadius: 24,
       padding: 22,
       alignItems: 'center',

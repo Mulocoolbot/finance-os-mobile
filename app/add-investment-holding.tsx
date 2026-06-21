@@ -7,6 +7,7 @@ import { NumericAmountInput } from '../src/components/ui/NumericAmountInput';
 import { Screen } from '../src/components/ui/Screen';
 import { ThemeColors } from '../src/constants/colors';
 import { useThemeColors } from '../src/hooks/useThemeColors';
+import { useAppToast } from '../src/components/ui/AppToast';
 import { fetchInvestmentPriceForHolding, isPriceSyncSupportedHolding } from '../src/services/investmentPriceSync';
 import { useFinanceStore } from '../src/stores/useFinanceStore';
 import { Currency, InvestmentAssetType, InvestmentHolding } from '../src/types/finance';
@@ -54,6 +55,7 @@ function isInvestmentAssetType(value: unknown): value is InvestmentAssetType {
 export default function AddInvestmentHoldingScreen() {
   const colors = useThemeColors();
   const styles = createStyles(colors);
+  const toast = useAppToast();
 
   const pickedAsset = useLocalSearchParams<{
     pickedName?: string;
@@ -219,7 +221,7 @@ export default function AddInvestmentHoldingScreen() {
 
   function handleSubmit() {
     if (!selectedAccount) {
-      Alert.alert('Finance OS Mobile', 'Create a broker or crypto wallet account first.');
+      toast.showWarning('Account Needed', 'Create a broker or crypto wallet account first.');
       return;
     }
 
@@ -235,11 +237,13 @@ export default function AddInvestmentHoldingScreen() {
       note,
     });
 
-    Alert.alert('Finance OS Mobile', result.message);
-
-    if (result.success) {
-      router.back();
+    if (!result.success) {
+      toast.showError('Could Not Save Holding', result.message);
+      return;
     }
+
+    toast.showSuccess('Holding Saved', result.message);
+    router.back();
   }
 
   return (

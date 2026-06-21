@@ -1,11 +1,13 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { Alert, StyleSheet, TextInput, View } from 'react-native';
+import { AnimatedPressable } from '../src/components/ui/AnimatedPressable';
 import { AppText } from '../src/components/ui/AppText';
 import { Screen } from '../src/components/ui/Screen';
 import { ThemeColors } from '../src/constants/colors';
 import { useThemeColors } from '../src/hooks/useThemeColors';
+import { useAppToast } from '../src/components/ui/AppToast';
 import {
   TradingAccount,
   TradingCashEventType,
@@ -55,6 +57,7 @@ function getLinkedBrokerWallet(account: TradingAccount | undefined, accounts: Ac
 export default function TradingCashEventScreen() {
   const colors = useThemeColors();
   const styles = createStyles(colors);
+  const toast = useAppToast();
   const params = useLocalSearchParams<{
     tradingAccountId?: string;
     eventType?: TradingCashEventType;
@@ -127,7 +130,7 @@ export default function TradingCashEventScreen() {
 
   function handleSave() {
     if (!tradingAccount) {
-      Alert.alert('Finance OS Mobile', 'Trading account not found.');
+      toast.showWarning('Trading Account Missing', 'Trading account not found.');
       return;
     }
 
@@ -139,27 +142,29 @@ export default function TradingCashEventScreen() {
       note,
     });
 
-    Alert.alert('Finance OS Mobile', result.message);
-
-    if (result.success) {
-      router.back();
+    if (!result.success) {
+      toast.showError('Could Not Save Cash Event', result.message);
+      return;
     }
+
+    toast.showSuccess(eventType === 'deposit' ? 'Deposit Saved' : 'Withdrawal Saved', result.message);
+    router.back();
   }
 
   return (
     <Screen>
       <View style={styles.header}>
-        <Pressable onPress={() => router.back()} style={styles.backButton}>
+        <AnimatedPressable onPress={() => router.back()} style={styles.backButton}>
           <Ionicons name="chevron-back-outline" size={22} color={colors.text} />
-        </Pressable>
+        </AnimatedPressable>
 
         <View style={styles.headerText}>
           <AppText variant="caption" muted>
-            Trading Journal
+            Cash Event
           </AppText>
 
           <AppText variant="title">
-            {eventType === 'deposit' ? 'Trading Deposit' : 'Trading Withdrawal'}
+            {eventType === 'deposit' ? 'Deposit' : 'Withdrawal'}
           </AppText>
         </View>
       </View>
@@ -175,11 +180,11 @@ export default function TradingCashEventScreen() {
 
         <View style={styles.infoTextBox}>
           <AppText variant="body" style={styles.infoTitle}>
-            Broker Wallet sync
+            Wallet Sync
           </AppText>
 
           <AppText variant="caption" muted style={styles.infoDescription}>
-            Choose any input currency. The app converts it into the linked Broker Wallet currency and Trading Account currency.
+            Input converts to wallet and trading account currency.
           </AppText>
         </View>
       </View>
@@ -191,7 +196,7 @@ export default function TradingCashEventScreen() {
           </AppText>
 
           <View style={styles.chipRow}>
-            <Pressable
+            <AnimatedPressable
               onPress={() => setEventType('deposit')}
               style={[styles.chip, eventType === 'deposit' ? styles.chipActive : null]}
             >
@@ -201,9 +206,9 @@ export default function TradingCashEventScreen() {
               >
                 Deposit
               </AppText>
-            </Pressable>
+            </AnimatedPressable>
 
-            <Pressable
+            <AnimatedPressable
               onPress={() => setEventType('withdrawal')}
               style={[styles.chip, eventType === 'withdrawal' ? styles.chipActive : null]}
             >
@@ -213,7 +218,7 @@ export default function TradingCashEventScreen() {
               >
                 Withdrawal
               </AppText>
-            </Pressable>
+            </AnimatedPressable>
           </View>
         </View>
 
@@ -226,7 +231,7 @@ export default function TradingCashEventScreen() {
 
         <View style={styles.linkCard}>
           <AppText variant="caption" muted>
-            Linked Broker Wallet
+            Broker Wallet
           </AppText>
 
           <AppText variant="body" style={styles.linkValue} numberOfLines={1}>
@@ -239,14 +244,14 @@ export default function TradingCashEventScreen() {
             </AppText>
           ) : (
             <AppText variant="caption" muted style={styles.linkSubValue}>
-              Link this trading account to a Broker Wallet before recording cash events.
+              Link broker wallet first.
             </AppText>
           )}
         </View>
 
         <View style={styles.field}>
           <AppText variant="caption" muted style={styles.label}>
-            Input Currency
+            Currency
           </AppText>
 
           <View style={styles.chipRow}>
@@ -254,7 +259,7 @@ export default function TradingCashEventScreen() {
               const active = currency === item;
 
               return (
-                <Pressable
+                <AnimatedPressable
                   key={item}
                   onPress={() => setCurrency(item)}
                   style={[styles.chip, active ? styles.chipActive : null]}
@@ -265,15 +270,15 @@ export default function TradingCashEventScreen() {
                   >
                     {item}
                   </AppText>
-                </Pressable>
+                </AnimatedPressable>
               );
             })}
           </View>
 
           {brokerWallet && tradingAccount ? (
             <AppText variant="caption" muted style={styles.currencyHelper}>
-              Input will be converted to {brokerWallet.currency} for wallet movement and{' '}
-              {tradingAccount.currency} for trading account movement.
+              Converts to {brokerWallet.currency} wallet and{' '}
+              {tradingAccount.currency} trading account.
             </AppText>
           ) : null}
         </View>
@@ -311,16 +316,16 @@ export default function TradingCashEventScreen() {
               </AppText>
 
               <AppText variant="caption" muted style={styles.previewLine}>
-                Converted wallet movement: {formatCurrency(preview.brokerWalletAmount, brokerWallet.currency)}
+                Wallet movement: {formatCurrency(preview.brokerWalletAmount, brokerWallet.currency)}
               </AppText>
 
               <AppText variant="caption" muted style={styles.previewLine}>
-                Converted trading movement: {formatCurrency(preview.tradingRealAmount, tradingAccount.currency)}
+                Trading movement: {formatCurrency(preview.tradingRealAmount, tradingAccount.currency)}
               </AppText>
 
               {tradingAccount.accountType === 'cent' ? (
                 <AppText variant="caption" muted style={styles.previewLine}>
-                  Cent raw movement: {preview.tradingRawAmount.toLocaleString('en-US', {
+                  Cent raw: {preview.tradingRawAmount.toLocaleString('en-US', {
                     maximumFractionDigits: 2,
                   })}{' '}
                   cents
@@ -349,13 +354,13 @@ export default function TradingCashEventScreen() {
         </View>
       </View>
 
-      <Pressable onPress={handleSave} style={styles.saveButton}>
+      <AnimatedPressable onPress={handleSave} style={styles.saveButton}>
         <Ionicons name="save-outline" size={18} color={colors.black} />
 
         <AppText variant="body" style={styles.saveButtonText}>
           Save {eventType === 'deposit' ? 'Deposit' : 'Withdrawal'}
         </AppText>
-      </Pressable>
+      </AnimatedPressable>
     </Screen>
   );
 }
@@ -385,7 +390,7 @@ function TradingAccountPicker({
           const realBalance = getRealTradingAmount(account, account.balance);
 
           return (
-            <Pressable
+            <AnimatedPressable
               key={account.id}
               onPress={() => onSelect(account.id)}
               style={[styles.optionCard, active ? styles.optionCardActive : null]}
@@ -425,7 +430,7 @@ function TradingAccountPicker({
                   Real balance {formatCurrency(realBalance, account.currency)}
                 </AppText>
               </View>
-            </Pressable>
+            </AnimatedPressable>
           );
         })}
       </View>
@@ -436,7 +441,7 @@ function TradingAccountPicker({
 function createStyles(colors: ThemeColors) {
   return StyleSheet.create({
     header: {
-      marginBottom: 22,
+      marginBottom: 18,
       flexDirection: 'row',
       alignItems: 'center',
       gap: 14,
@@ -447,7 +452,7 @@ function createStyles(colors: ThemeColors) {
       borderRadius: 16,
       backgroundColor: colors.surface,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       alignItems: 'center',
       justifyContent: 'center',
     },
@@ -456,14 +461,19 @@ function createStyles(colors: ThemeColors) {
       minWidth: 0,
     },
     infoCard: {
-      backgroundColor: colors.surface,
+      backgroundColor: colors.surfaceRaised,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       borderRadius: 24,
       padding: 14,
       flexDirection: 'row',
       gap: 12,
-      marginBottom: 16,
+      marginBottom: 14,
+      shadowColor: colors.shadow,
+      shadowOpacity: 0.12,
+      shadowRadius: 12,
+      shadowOffset: { width: 0, height: 7 },
+      elevation: 2,
     },
     infoIcon: {
       width: 42,
@@ -488,11 +498,11 @@ function createStyles(colors: ThemeColors) {
     formCard: {
       backgroundColor: colors.surface,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       borderRadius: 24,
-      padding: 16,
-      gap: 16,
-      marginBottom: 16,
+      padding: 14,
+      gap: 14,
+      marginBottom: 14,
     },
     field: {
       gap: 8,
@@ -510,7 +520,7 @@ function createStyles(colors: ThemeColors) {
       borderRadius: 999,
       backgroundColor: colors.surfaceSoft,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       paddingHorizontal: 12,
       alignItems: 'center',
       justifyContent: 'center',
@@ -536,7 +546,7 @@ function createStyles(colors: ThemeColors) {
     optionCard: {
       backgroundColor: colors.surfaceSoft,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       borderRadius: 18,
       padding: 12,
       flexDirection: 'row',
@@ -553,7 +563,7 @@ function createStyles(colors: ThemeColors) {
       borderRadius: 14,
       backgroundColor: colors.surface,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       alignItems: 'center',
       justifyContent: 'center',
     },
@@ -579,7 +589,7 @@ function createStyles(colors: ThemeColors) {
     linkCard: {
       backgroundColor: colors.surfaceSoft,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       borderRadius: 18,
       padding: 13,
       gap: 4,
@@ -596,7 +606,7 @@ function createStyles(colors: ThemeColors) {
       borderRadius: 18,
       backgroundColor: colors.surfaceSoft,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       paddingHorizontal: 13,
       justifyContent: 'center',
     },
@@ -620,7 +630,7 @@ function createStyles(colors: ThemeColors) {
     previewCard: {
       backgroundColor: colors.surfaceSoft,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       borderRadius: 18,
       padding: 13,
       gap: 5,
@@ -633,7 +643,7 @@ function createStyles(colors: ThemeColors) {
       lineHeight: 18,
     },
     saveButton: {
-      minHeight: 56,
+      minHeight: 54,
       borderRadius: 20,
       backgroundColor: colors.primary,
       alignItems: 'center',

@@ -7,6 +7,7 @@ import { NumericAmountInput } from '../src/components/ui/NumericAmountInput';
 import { Screen } from '../src/components/ui/Screen';
 import { ThemeColors } from '../src/constants/colors';
 import { useThemeColors } from '../src/hooks/useThemeColors';
+import { useAppToast } from '../src/components/ui/AppToast';
 import { useFinanceStore } from '../src/stores/useFinanceStore';
 import { AccountType, Currency } from '../src/types/finance';
 
@@ -63,6 +64,7 @@ function parseAmount(value: string) {
 export default function AddAccountScreen() {
   const colors = useThemeColors();
   const styles = createStyles(colors);
+  const toast = useAppToast();
 
   const addAccount = useFinanceStore((state) => state.addAccount);
   const defaultCurrency = useFinanceStore((state) => state.defaultCurrency);
@@ -81,11 +83,11 @@ export default function AddAccountScreen() {
     });
 
     if (!result.success) {
-      Alert.alert('Finance OS Mobile', result.message);
+      toast.showError('Could Not Save Account', result.message);
       return;
     }
 
-    Alert.alert('Finance OS Mobile', result.message);
+    toast.showSuccess('Account Saved', result.message);
     router.back();
   }
 

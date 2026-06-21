@@ -3,6 +3,7 @@ import { router } from 'expo-router';
 import { useMemo } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { AccountCard } from '../src/components/cards/AccountCard';
+import { AnimatedPressable } from '../src/components/ui/AnimatedPressable';
 import { AppText } from '../src/components/ui/AppText';
 import { Screen } from '../src/components/ui/Screen';
 import { StatCard } from '../src/components/ui/StatCard';
@@ -92,7 +93,7 @@ function buildAccountGroups(accounts: Account[]): AccountGroup[] {
     {
       key: 'cash-bank',
       title: 'Cash & Bank',
-      description: 'Cash, bank accounts, and main money sources.',
+      description: 'Cash and bank sources.',
       accounts: activeAccounts.filter(
         (account) => account.type === 'cash' || account.type === 'bank'
       ),
@@ -100,19 +101,19 @@ function buildAccountGroups(accounts: Account[]): AccountGroup[] {
     {
       key: 'wallets',
       title: 'E-Wallets',
-      description: 'Digital wallets and payment accounts.',
+      description: 'Payment wallets.',
       accounts: activeAccounts.filter((account) => account.type === 'e_wallet'),
     },
     {
       key: 'savings',
       title: 'Savings',
-      description: 'Sub-wallets connected to saving goals.',
+      description: 'Saving wallets.',
       accounts: activeAccounts.filter((account) => account.type === 'saving'),
     },
     {
       key: 'investments',
       title: 'Investments',
-      description: 'Broker and crypto wallet balances.',
+      description: 'Portfolio wallets.',
       accounts: activeAccounts.filter(
         (account) => account.type === 'broker' || account.type === 'crypto_wallet'
       ),
@@ -120,13 +121,13 @@ function buildAccountGroups(accounts: Account[]): AccountGroup[] {
     {
       key: 'custom',
       title: 'Custom',
-      description: 'Other custom account types.',
+      description: 'Custom sources.',
       accounts: activeAccounts.filter((account) => account.type === 'custom'),
     },
     {
       key: 'archived',
       title: 'Archived Accounts',
-      description: 'Inactive accounts kept to preserve historical records.',
+      description: 'Inactive records.',
       accounts: archivedAccounts,
     },
   ].filter((group) => group.accounts.length > 0);
@@ -189,34 +190,28 @@ export default function AccountsScreen() {
         </Pressable>
 
         <View style={styles.headerText}>
-          <AppText variant="caption" muted>
-            Finance OS Mobile
-          </AppText>
-
           <AppText variant="title" style={styles.title}>
             Accounts
           </AppText>
         </View>
 
-        <Pressable onPress={() => router.push('/add-account')} style={styles.addButton}>
+        <AnimatedPressable onPress={() => router.push('/add-account')} style={styles.addButton}>
           <Ionicons name="add-outline" size={24} color={colors.black} />
-        </Pressable>
+        </AnimatedPressable>
       </View>
 
       <View style={styles.heroCard}>
         <View style={styles.heroTop}>
           <View style={styles.heroTextBox}>
             <AppText variant="caption" muted>
-              Total Net Worth • {defaultCurrency} base
+              Net Worth
             </AppText>
 
             <AppText variant="title" style={styles.netWorth}>
               {formatCompactCurrency(accountSummary.netWorth, defaultCurrency)}
             </AppText>
 
-            <AppText variant="caption" muted style={styles.fullValue}>
-              {formatCurrency(accountSummary.netWorth, defaultCurrency)}
-            </AppText>
+
           </View>
 
           <View style={styles.activeBadge}>
@@ -230,20 +225,20 @@ export default function AccountsScreen() {
       </View>
 
       <View style={styles.actionRow}>
-        <Pressable onPress={() => router.push('/transfer-balance' as any)} style={styles.transferButton}>
+        <AnimatedPressable onPress={() => router.push('/transfer-balance' as any)} style={styles.transferButton}>
           <Ionicons name="swap-horizontal-outline" size={18} color={colors.black} />
 
           <AppText variant="body" style={styles.transferButtonText}>
             Transfer Balance
           </AppText>
-        </Pressable>
+        </AnimatedPressable>
       </View>
 
       <View style={styles.grid}>
         <StatCard label="Available" value={formatCompactCurrency(accountSummary.availableBalance, defaultCurrency)} />
         <StatCard label="Savings" value={formatCompactCurrency(accountSummary.totalSavings, defaultCurrency)} tone="saving" />
         <StatCard label="Investment" value={formatCompactCurrency(accountSummary.totalInvestment, defaultCurrency)} tone="investment" />
-        <StatCard label="Trading Monitor" value={formatCompactCurrency(accountSummary.totalTrading, defaultCurrency)} tone="transfer" />
+        <StatCard label="Trading" value={formatCompactCurrency(accountSummary.totalTrading, defaultCurrency)} tone="transfer" />
       </View>
 
       <View style={styles.sectionHeader}>
@@ -290,7 +285,7 @@ export default function AccountsScreen() {
                     exchangeRates={exchangeRates}
                   />
 
-                  <Pressable
+                  <AnimatedPressable
                     onPress={() => router.push(`/edit-account?accountId=${account.id}`)}
                     style={styles.accountEditAction}
                   >
@@ -299,7 +294,7 @@ export default function AccountsScreen() {
                     <AppText variant="caption" style={styles.accountEditActionText}>
                       Manage Account
                     </AppText>
-                  </Pressable>
+                  </AnimatedPressable>
                 </View>
               ))}
             </View>
@@ -315,7 +310,7 @@ export default function AccountsScreen() {
                 </AppText>
 
                 <AppText variant="caption" muted style={styles.groupDescription}>
-                  MT4/MT5 trading accounts connected to Journal.
+                  Trading accounts.
                 </AppText>
               </View>
 
@@ -473,7 +468,7 @@ function TradingAccountCard({
         <Ionicons name="analytics-outline" size={15} color={colors.black} />
 
         <AppText variant="caption" style={styles.tradingOpenJournalActionText}>
-          Open Account Journal
+          Open Journal
         </AppText>
       </Pressable>
 
@@ -484,7 +479,7 @@ function TradingAccountCard({
         <Ionicons name="create-outline" size={15} color={colors.text} />
 
         <AppText variant="caption" style={styles.tradingEditActionText}>
-          Edit Trading Account
+          Edit Account
         </AppText>
       </Pressable>
 
@@ -522,7 +517,7 @@ function TradingAccountCard({
 function createStyles(colors: ThemeColors) {
   return StyleSheet.create({
     header: {
-      marginBottom: 22,
+      marginBottom: 18,
       flexDirection: 'row',
       alignItems: 'center',
       gap: 14,
@@ -533,17 +528,22 @@ function createStyles(colors: ThemeColors) {
       borderRadius: 16,
       backgroundColor: colors.surface,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       alignItems: 'center',
       justifyContent: 'center',
     },
     addButton: {
-      width: 44,
-      height: 44,
-      borderRadius: 16,
+      width: 46,
+      height: 46,
+      borderRadius: 18,
       backgroundColor: colors.primary,
       alignItems: 'center',
       justifyContent: 'center',
+      shadowColor: colors.shadow,
+      shadowOpacity: 0.22,
+      shadowRadius: 12,
+      shadowOffset: { width: 0, height: 6 },
+      elevation: 3,
     },
     headerText: {
       flex: 1,
@@ -553,12 +553,17 @@ function createStyles(colors: ThemeColors) {
       marginTop: 4,
     },
     heroCard: {
-      backgroundColor: colors.surface,
+      backgroundColor: colors.surfaceRaised,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       borderRadius: 28,
-      padding: 22,
-      marginBottom: 18,
+      padding: 20,
+      marginBottom: 14,
+      shadowColor: colors.shadow,
+      shadowOpacity: 0.14,
+      shadowRadius: 14,
+      shadowOffset: { width: 0, height: 8 },
+      elevation: 2,
     },
     heroTop: {
       flexDirection: 'row',
@@ -571,17 +576,18 @@ function createStyles(colors: ThemeColors) {
       minWidth: 0,
     },
     netWorth: {
-      marginTop: 8,
-      fontSize: 32,
-      lineHeight: 38,
+      marginTop: 7,
+      fontSize: 34,
+      lineHeight: 40,
+      letterSpacing: -0.8,
     },
     fullValue: {
       marginTop: 4,
     },
     activeBadge: {
-      backgroundColor: colors.surfaceSoft,
+      backgroundColor: colors.primarySoft,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       borderRadius: 999,
       paddingHorizontal: 10,
       paddingVertical: 7,
@@ -595,18 +601,18 @@ function createStyles(colors: ThemeColors) {
     grid: {
       flexDirection: 'row',
       flexWrap: 'wrap',
-      gap: 12,
+      gap: 10,
     },
     sectionHeader: {
-      marginTop: 28,
-      marginBottom: 14,
+      marginTop: 22,
+      marginBottom: 10,
       flexDirection: 'row',
       justifyContent: 'space-between',
       alignItems: 'flex-end',
       gap: 12,
     },
     actionRow: {
-      marginBottom: 18,
+      marginBottom: 14,
     },
     transferButton: {
       minHeight: 52,
@@ -623,12 +629,12 @@ function createStyles(colors: ThemeColors) {
       fontWeight: '900',
     },
     groupList: {
-      gap: 20,
+      gap: 16,
     },
     emptyCard: {
       backgroundColor: colors.surface,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       borderRadius: 22,
       padding: 18,
     },
@@ -653,13 +659,13 @@ function createStyles(colors: ThemeColors) {
       fontWeight: '900',
     },
     groupDescription: {
-      marginTop: 4,
-      lineHeight: 18,
+      marginTop: 3,
+      lineHeight: 16,
     },
     groupCount: {
-      backgroundColor: colors.surface,
+      backgroundColor: colors.surfaceSoft,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       borderRadius: 999,
       minWidth: 34,
       height: 28,
@@ -667,12 +673,12 @@ function createStyles(colors: ThemeColors) {
       justifyContent: 'center',
     },
     accountsList: {
-      gap: 10,
+      gap: 9,
     },
     tradingCard: {
       backgroundColor: colors.surface,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       borderRadius: 24,
       padding: 14,
       gap: 13,
@@ -688,7 +694,7 @@ function createStyles(colors: ThemeColors) {
       borderRadius: 17,
       backgroundColor: colors.surfaceSoft,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       alignItems: 'center',
       justifyContent: 'center',
     },
@@ -704,7 +710,7 @@ function createStyles(colors: ThemeColors) {
       borderRadius: 999,
       backgroundColor: colors.surfaceSoft,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       paddingHorizontal: 9,
       paddingVertical: 5,
     },
@@ -725,7 +731,7 @@ function createStyles(colors: ThemeColors) {
       borderRadius: 16,
       backgroundColor: colors.surfaceSoft,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       padding: 10,
       gap: 3,
     },
@@ -762,7 +768,7 @@ function createStyles(colors: ThemeColors) {
       borderRadius: 15,
       backgroundColor: colors.surfaceSoft,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       alignItems: 'center',
       justifyContent: 'center',
       flexDirection: 'row',
@@ -796,7 +802,7 @@ function createStyles(colors: ThemeColors) {
       borderRadius: 15,
       backgroundColor: colors.surfaceSoft,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       alignItems: 'center',
       justifyContent: 'center',
       flexDirection: 'row',
@@ -815,7 +821,7 @@ function createStyles(colors: ThemeColors) {
       borderRadius: 14,
       backgroundColor: colors.surface,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       paddingHorizontal: 12,
       flexDirection: 'row',
       alignItems: 'center',

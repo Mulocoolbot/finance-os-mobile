@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Alert, Pressable, StyleSheet, View } from 'react-native';
+import { AnimatedPressable } from '../src/components/ui/AnimatedPressable';
 import { AppText } from '../src/components/ui/AppText';
 import { Screen } from '../src/components/ui/Screen';
 import { ThemeColors } from '../src/constants/colors';
@@ -102,7 +103,7 @@ export default function TradingTradeDetailScreen() {
 
           <View style={styles.headerText}>
             <AppText variant="caption" muted>
-              Trade Detail
+              Trade
             </AppText>
 
             <AppText variant="title">Not Found</AppText>
@@ -131,7 +132,7 @@ export default function TradingTradeDetailScreen() {
 
         <View style={styles.headerText}>
           <AppText variant="caption" muted>
-            Trade Detail
+            Trade
           </AppText>
 
           <AppText variant="title" numberOfLines={1}>
@@ -165,7 +166,8 @@ export default function TradingTradeDetailScreen() {
       </View>
 
       <View style={styles.actionRow}>
-        <Pressable
+        <AnimatedPressable
+          containerStyle={styles.actionButtonMotion}
           onPress={() =>
             router.push(`/add-trading-trade?tradeId=${trade.id}` as any)
           }
@@ -176,15 +178,15 @@ export default function TradingTradeDetailScreen() {
           <AppText variant="body" style={styles.editButtonText}>
             Edit Trade
           </AppText>
-        </Pressable>
+        </AnimatedPressable>
 
-        <Pressable onPress={handleDelete} style={styles.deleteButton}>
+        <AnimatedPressable containerStyle={styles.actionButtonMotion} onPress={handleDelete} style={styles.deleteButton}>
           <Ionicons name="trash-outline" size={18} color={colors.white} />
 
           <AppText variant="body" style={styles.deleteButtonText}>
             Delete
           </AppText>
-        </Pressable>
+        </AnimatedPressable>
       </View>
 
       <View style={styles.sectionCard}>
@@ -194,7 +196,7 @@ export default function TradingTradeDetailScreen() {
         <InfoLine label="Open Date" value={formatDateTime(trade.openDate)} colors={colors} />
         <InfoLine
           label="Close Date"
-          value={trade.closeDate ? formatDateTime(trade.closeDate) : 'Still open'}
+          value={trade.closeDate ? formatDateTime(trade.closeDate) : 'Open'}
           colors={colors}
         />
       </View>
@@ -228,23 +230,23 @@ export default function TradingTradeDetailScreen() {
           colors={colors}
         />
         <InfoLine
-          label="Plan Risk Snapshot"
+          label="Plan Risk"
           value={
             trade.planRiskLimitAmountSnapshot
               ? `${trade.planRiskPercentSnapshot}% / ${formatCurrency(
                   trade.planRiskLimitAmountSnapshot,
                   trade.currency
                 )}`
-              : 'No snapshot'
+              : '-'
           }
           colors={colors}
         />
         <InfoLine
-          label="Balance Snapshot"
+          label="Balance"
           value={
             trade.accountBalanceSnapshot
               ? formatCurrency(trade.accountBalanceSnapshot, trade.currency)
-              : 'No snapshot'
+              : '-'
           }
           colors={colors}
         />
@@ -255,11 +257,11 @@ export default function TradingTradeDetailScreen() {
         <InfoLine label="Setup" value={trade.setupTag || 'No setup'} colors={colors} />
         <InfoLine
           label="Mistakes"
-          value={trade.mistakeTags.length ? trade.mistakeTags.join(', ') : 'No mistake tag'}
+          value={trade.mistakeTags.length ? trade.mistakeTags.join(', ') : 'No mistakes'}
           colors={colors}
         />
-        <InfoLine label="Emotion Before" value={trade.emotionBefore || '-'} colors={colors} />
-        <InfoLine label="Emotion After" value={trade.emotionAfter || '-'} colors={colors} />
+        <InfoLine label="Before" value={trade.emotionBefore || '-'} colors={colors} />
+        <InfoLine label="After" value={trade.emotionAfter || '-'} colors={colors} />
       </View>
 
       {trade.note ? (
@@ -304,7 +306,7 @@ function InfoLine({
 function createStyles(colors: ThemeColors) {
   return StyleSheet.create({
     header: {
-      marginBottom: 22,
+      marginBottom: 18,
       flexDirection: 'row',
       alignItems: 'center',
       gap: 14,
@@ -315,7 +317,7 @@ function createStyles(colors: ThemeColors) {
       borderRadius: 16,
       backgroundColor: colors.surface,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       alignItems: 'center',
       justifyContent: 'center',
     },
@@ -324,13 +326,18 @@ function createStyles(colors: ThemeColors) {
       minWidth: 0,
     },
     heroCard: {
-      backgroundColor: colors.surface,
+      backgroundColor: colors.surfaceRaised,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       borderRadius: 26,
-      padding: 16,
+      padding: 15,
       gap: 8,
-      marginBottom: 16,
+      marginBottom: 14,
+      shadowColor: colors.shadow,
+      shadowOpacity: 0.14,
+      shadowRadius: 14,
+      shadowOffset: { width: 0, height: 8 },
+      elevation: 2,
     },
     heroTop: {
       flexDirection: 'row',
@@ -347,7 +354,7 @@ function createStyles(colors: ThemeColors) {
     statusBadge: {
       backgroundColor: colors.surfaceSoft,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       borderRadius: 999,
       paddingHorizontal: 10,
       paddingVertical: 6,
@@ -359,7 +366,10 @@ function createStyles(colors: ThemeColors) {
     actionRow: {
       flexDirection: 'row',
       gap: 10,
-      marginBottom: 16,
+      marginBottom: 14,
+    },
+    actionButtonMotion: {
+      flex: 1,
     },
     editButton: {
       flex: 1,
@@ -392,7 +402,7 @@ function createStyles(colors: ThemeColors) {
     sectionCard: {
       backgroundColor: colors.surface,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       borderRadius: 24,
       padding: 15,
       gap: 12,
@@ -400,7 +410,7 @@ function createStyles(colors: ThemeColors) {
     },
     infoLine: {
       borderBottomWidth: 1,
-      borderBottomColor: colors.border,
+      borderBottomColor: colors.borderSoft,
       paddingBottom: 10,
       gap: 4,
     },
@@ -411,7 +421,7 @@ function createStyles(colors: ThemeColors) {
     noteCard: {
       backgroundColor: colors.surface,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       borderRadius: 24,
       padding: 15,
       gap: 7,
@@ -425,7 +435,7 @@ function createStyles(colors: ThemeColors) {
     emptyCard: {
       backgroundColor: colors.surface,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       borderRadius: 24,
       padding: 22,
       alignItems: 'center',

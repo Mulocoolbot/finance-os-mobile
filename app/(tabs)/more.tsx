@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
+import { AnimatedPressable } from '../../src/components/ui/AnimatedPressable';
 import { AppText } from '../../src/components/ui/AppText';
 import { Screen } from '../../src/components/ui/Screen';
 import { ThemeColors } from '../../src/constants/colors';
@@ -59,31 +60,31 @@ const mainMenus: MenuItem[] = [
   },
   {
     title: 'Journal',
-    description: 'Trading journal, trading plan, account detail, profit pool, and AI coach.',
+    description: 'Trading workspace.',
     icon: 'book-outline',
     route: '/journal',
   },
   {
     title: 'AI Coach',
-    description: 'Local trading performance summary with insights and next action plan.',
+    description: 'Trading insights.',
     icon: 'sparkles-outline',
     route: '/trading-ai-performance',
   },
   {
     title: 'Profit Pool',
-    description: 'Split realized trading profit into reinvest, withdraw, reserve, and other pools.',
+    description: 'Profit allocation.',
     icon: 'pie-chart-outline',
     route: '/trading-profit-pool',
   },
   {
     title: 'Crypto Wallets',
-    description: 'Save Web3/CEX wallet profiles using crypto assets returned by API/provider.',
+    description: 'Wallet profiles.',
     icon: 'logo-bitcoin',
     route: '/crypto-wallets',
   },
   {
     title: 'Investments',
-    description: 'View broker and crypto wallet portfolio summary.',
+    description: 'Portfolio overview.',
     icon: 'trending-up-outline',
     route: '/investments',
   },
@@ -92,13 +93,13 @@ const mainMenus: MenuItem[] = [
 const systemMenus: MenuItem[] = [
   {
     title: 'Settings',
-    description: 'Theme, currency base, exchange-rate audit, and navigation hub.',
+    description: 'App preferences.',
     icon: 'settings-outline',
     route: '/settings',
   },
   {
     title: 'Backup & Restore',
-    description: 'Export and import local finance data as JSON.',
+    description: 'JSON backup.',
     icon: 'shield-checkmark-outline',
     route: '/backup',
   },
@@ -107,31 +108,31 @@ const systemMenus: MenuItem[] = [
 const upcomingMenus: MenuItem[] = [
   {
     title: 'Database + Auth',
-    description: 'Cloud database, email login, Google sign-in, and account-based sync.',
+    description: 'Cloud sync.',
     icon: 'cloud-outline',
     badge: 'Planned',
   },
   {
     title: 'Real AI API',
-    description: 'External AI summary through secure backend after auth/database.',
+    description: 'Server AI.',
     icon: 'sparkles-outline',
     badge: 'Planned',
   },
   {
     title: 'MetaTrader Link',
-    description: 'MT4/MT5 statement import or account sync preparation.',
+    description: 'Broker sync.',
     icon: 'sync-outline',
     badge: 'Planned',
   },
   {
     title: 'Crypto Access',
-    description: 'Connect real crypto account or wallet through provider/API access.',
+    description: 'Provider/API.',
     icon: 'logo-bitcoin',
     badge: 'Planned',
   },
   {
     title: 'Codebase Refactor',
-    description: 'Split large files, reduce duplication, and improve maintainability.',
+    description: 'Cleanup.',
     icon: 'construct-outline',
     badge: 'Later',
   },
@@ -145,10 +146,6 @@ export default function MoreScreen() {
     <Screen>
       <View style={styles.header}>
         <View>
-          <AppText variant="caption" muted>
-            Finance OS Mobile
-          </AppText>
-
           <AppText variant="title" style={styles.title}>
             More
           </AppText>
@@ -163,8 +160,8 @@ export default function MoreScreen() {
         <View style={styles.heroTextBox}>
           <AppText variant="subtitle">Control Center</AppText>
 
-          <AppText variant="body" muted style={styles.heroDescription}>
-            Open finished modules and see what is planned next: finance, budgets, reports, trading journal, AI coach, settings, and backup tools.
+          <AppText variant="caption" muted style={styles.heroDescription}>
+            Fast access to active modules and upcoming upgrades.
           </AppText>
         </View>
       </View>
@@ -217,7 +214,7 @@ function MenuCard({
   const styles = createStyles(colors);
 
   return (
-    <Pressable
+    <AnimatedPressable
       disabled={disabled || !item.route}
       onPress={() => {
         if (item.route) router.push(item.route as any);
@@ -251,35 +248,40 @@ function MenuCard({
       {!disabled ? (
         <Ionicons name="chevron-forward-outline" size={19} color={colors.textMuted} />
       ) : null}
-    </Pressable>
+    </AnimatedPressable>
   );
 }
 
 function createStyles(colors: ThemeColors) {
   return StyleSheet.create({
     header: {
-      marginBottom: 22,
+      marginBottom: 18,
     },
     title: {
       marginTop: 4,
     },
     heroCard: {
-      backgroundColor: colors.surface,
+      backgroundColor: colors.surfaceRaised,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       borderRadius: 28,
-      padding: 18,
+      padding: 16,
       flexDirection: 'row',
-      gap: 14,
+      gap: 13,
       alignItems: 'center',
+      shadowColor: colors.shadow,
+      shadowOpacity: 0.14,
+      shadowRadius: 14,
+      shadowOffset: { width: 0, height: 8 },
+      elevation: 2,
     },
     heroIcon: {
-      width: 52,
-      height: 52,
+      width: 50,
+      height: 50,
       borderRadius: 18,
-      backgroundColor: colors.surfaceSoft,
+      backgroundColor: colors.primarySoft,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       alignItems: 'center',
       justifyContent: 'center',
     },
@@ -288,40 +290,40 @@ function createStyles(colors: ThemeColors) {
       minWidth: 0,
     },
     heroDescription: {
-      marginTop: 6,
-      lineHeight: 21,
+      marginTop: 5,
+      lineHeight: 17,
     },
     sectionHeader: {
-      marginTop: 28,
-      marginBottom: 14,
+      marginTop: 22,
+      marginBottom: 10,
       flexDirection: 'row',
       alignItems: 'flex-end',
       justifyContent: 'space-between',
       gap: 12,
     },
     menuList: {
-      gap: 10,
+      gap: 8,
     },
     menuCard: {
       backgroundColor: colors.surface,
       borderWidth: 1,
-      borderColor: colors.border,
-      borderRadius: 22,
-      padding: 15,
+      borderColor: colors.borderSoft,
+      borderRadius: 21,
+      padding: 13,
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 13,
+      gap: 12,
     },
     menuCardDisabled: {
       opacity: 0.72,
     },
     menuIcon: {
-      width: 46,
-      height: 46,
+      width: 42,
+      height: 42,
       borderRadius: 16,
       backgroundColor: colors.surfaceSoft,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       alignItems: 'center',
       justifyContent: 'center',
     },
@@ -344,13 +346,13 @@ function createStyles(colors: ThemeColors) {
       color: colors.textMuted,
     },
     menuDescription: {
-      marginTop: 4,
-      lineHeight: 18,
+      marginTop: 3,
+      lineHeight: 16,
     },
     badge: {
-      backgroundColor: colors.surfaceSoft,
+      backgroundColor: colors.accentSoft,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       borderRadius: 999,
       paddingHorizontal: 8,
       paddingVertical: 3,

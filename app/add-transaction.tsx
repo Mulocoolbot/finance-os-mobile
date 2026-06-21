@@ -7,6 +7,7 @@ import { NumericAmountInput } from '../src/components/ui/NumericAmountInput';
 import { Screen } from '../src/components/ui/Screen';
 import { ThemeColors } from '../src/constants/colors';
 import { useThemeColors } from '../src/hooks/useThemeColors';
+import { useAppToast } from '../src/components/ui/AppToast';
 import { useFinanceStore } from '../src/stores/useFinanceStore';
 import { Account, Category, Currency, TransactionType } from '../src/types/finance';
 import { formatCurrency } from '../src/utils/currency';
@@ -121,6 +122,7 @@ function getModeTone(colors: ThemeColors, mode: TransactionMode) {
 export default function AddTransactionScreen() {
   const colors = useThemeColors();
   const styles = createStyles(colors);
+  const toast = useAppToast();
 
   const accounts = useFinanceStore((state) => state.accounts);
   const categories = useFinanceStore((state) => state.categories);
@@ -190,11 +192,11 @@ export default function AddTransactionScreen() {
 
   function handleResult(result: { success: boolean; message: string }) {
     if (!result.success) {
-      Alert.alert('Finance OS Mobile', result.message);
+      toast.showError('Could Not Save', result.message);
       return;
     }
 
-    Alert.alert('Finance OS Mobile', result.message);
+    toast.showSuccess('Saved', result.message);
     router.back();
   }
 

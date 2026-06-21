@@ -3,6 +3,7 @@ import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { BudgetCard } from '../../src/components/cards/BudgetCard';
+import { AnimatedPressable } from '../../src/components/ui/AnimatedPressable';
 import { AppText } from '../../src/components/ui/AppText';
 import { Screen } from '../../src/components/ui/Screen';
 import { StatCard } from '../../src/components/ui/StatCard';
@@ -397,9 +398,9 @@ export default function BudgetScreen() {
           </AppText>
         </View>
 
-        <Pressable onPress={() => router.push('/add-budget')} style={styles.addButton}>
+        <AnimatedPressable onPress={() => router.push('/add-budget')} style={styles.addButton}>
           <Ionicons name="add-outline" size={24} color={colors.black} />
-        </Pressable>
+        </AnimatedPressable>
       </View>
 
       <View style={styles.heroCard}>
@@ -414,8 +415,7 @@ export default function BudgetScreen() {
             </AppText>
 
             <AppText variant="caption" muted style={styles.heroDescription}>
-              {formatCompactCurrency(budgetSummary.totalUsed, defaultCurrency)} used from{' '}
-              {formatCompactCurrency(budgetSummary.totalLimit, defaultCurrency)}
+              {formatCompactCurrency(budgetSummary.totalUsed, defaultCurrency)} / {formatCompactCurrency(budgetSummary.totalLimit, defaultCurrency)}
             </AppText>
           </View>
 
@@ -485,11 +485,11 @@ export default function BudgetScreen() {
         <View style={styles.automationHeader}>
           <View>
             <AppText variant="caption" muted>
-              Budget Automation
+              Automation
             </AppText>
 
             <AppText variant="subtitle" style={styles.automationTitle}>
-              Auto period tracking
+              Period tracking
             </AppText>
           </View>
 
@@ -511,7 +511,7 @@ export default function BudgetScreen() {
 
           <View style={styles.automationMetric}>
             <AppText variant="caption" muted>
-              Projected usage
+              Projected
             </AppText>
 
             <AppText
@@ -534,7 +534,7 @@ export default function BudgetScreen() {
 
           <View style={styles.automationMetric}>
             <AppText variant="caption" muted>
-              Projected alerts
+              Alerts
             </AppText>
 
             <AppText
@@ -555,8 +555,7 @@ export default function BudgetScreen() {
         </View>
 
         <AppText variant="caption" muted style={styles.automationDescription}>
-          Weekly and monthly budgets reset by active period automatically. Custom budgets use the
-          selected start/end date range.
+          Auto reset follows each active budget period.
         </AppText>
       </View>
 
@@ -565,7 +564,7 @@ export default function BudgetScreen() {
           const isActive = selectedFilter === filter.value;
 
           return (
-            <Pressable
+            <AnimatedPressable
               key={filter.value}
               onPress={() => setSelectedFilter(filter.value)}
               style={[styles.filterPill, isActive && styles.filterPillActive]}
@@ -576,7 +575,7 @@ export default function BudgetScreen() {
               >
                 {filter.label}
               </AppText>
-            </Pressable>
+            </AnimatedPressable>
           );
         })}
       </View>
@@ -728,7 +727,7 @@ function MiniMetric({
 function createStyles(colors: ThemeColors) {
   return StyleSheet.create({
     header: {
-      marginBottom: 22,
+      marginBottom: 18,
       flexDirection: 'row',
       alignItems: 'center',
       gap: 14,
@@ -741,20 +740,30 @@ function createStyles(colors: ThemeColors) {
       marginTop: 4,
     },
     addButton: {
-      width: 44,
-      height: 44,
-      borderRadius: 16,
+      width: 46,
+      height: 46,
+      borderRadius: 18,
       backgroundColor: colors.primary,
       alignItems: 'center',
       justifyContent: 'center',
+      shadowColor: colors.shadow,
+      shadowOpacity: 0.22,
+      shadowRadius: 12,
+      shadowOffset: { width: 0, height: 6 },
+      elevation: 3,
     },
     heroCard: {
-      backgroundColor: colors.surface,
+      backgroundColor: colors.surfaceRaised,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       borderRadius: 28,
-      padding: 22,
-      marginBottom: 18,
+      padding: 20,
+      marginBottom: 14,
+      shadowColor: colors.shadow,
+      shadowOpacity: 0.14,
+      shadowRadius: 14,
+      shadowOffset: { width: 0, height: 8 },
+      elevation: 2,
     },
     heroTop: {
       flexDirection: 'row',
@@ -767,9 +776,10 @@ function createStyles(colors: ThemeColors) {
       minWidth: 0,
     },
     heroValue: {
-      marginTop: 8,
-      fontSize: 34,
-      lineHeight: 40,
+      marginTop: 7,
+      fontSize: 36,
+      lineHeight: 42,
+      letterSpacing: -0.8,
     },
     heroDescription: {
       marginTop: 4,
@@ -779,9 +789,9 @@ function createStyles(colors: ThemeColors) {
       flexDirection: 'row',
       alignItems: 'center',
       gap: 6,
-      backgroundColor: colors.surfaceSoft,
+      backgroundColor: colors.warningSoft,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       borderRadius: 999,
       paddingHorizontal: 10,
       paddingVertical: 7,
@@ -803,15 +813,15 @@ function createStyles(colors: ThemeColors) {
     grid: {
       flexDirection: 'row',
       flexWrap: 'wrap',
-      gap: 12,
+      gap: 10,
     },
     automationCard: {
-      marginTop: 18,
+      marginTop: 14,
       backgroundColor: colors.surface,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       borderRadius: 24,
-      padding: 16,
+      padding: 14,
     },
     automationHeader: {
       flexDirection: 'row',
@@ -828,7 +838,7 @@ function createStyles(colors: ThemeColors) {
       borderRadius: 16,
       backgroundColor: colors.surfaceSoft,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       alignItems: 'center',
       justifyContent: 'center',
     },
@@ -839,11 +849,11 @@ function createStyles(colors: ThemeColors) {
     },
     automationMetric: {
       flex: 1,
-      minHeight: 64,
+      minHeight: 58,
       borderRadius: 16,
       backgroundColor: colors.surfaceSoft,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       padding: 10,
       justifyContent: 'center',
     },
@@ -854,11 +864,11 @@ function createStyles(colors: ThemeColors) {
       lineHeight: 16,
     },
     automationDescription: {
-      marginTop: 12,
-      lineHeight: 19,
+      marginTop: 10,
+      lineHeight: 17,
     },
     filterRow: {
-      marginTop: 20,
+      marginTop: 16,
       flexDirection: 'row',
       flexWrap: 'wrap',
       gap: 8,
@@ -866,7 +876,7 @@ function createStyles(colors: ThemeColors) {
     filterPill: {
       backgroundColor: colors.surface,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       borderRadius: 999,
       paddingHorizontal: 12,
       paddingVertical: 8,
@@ -883,15 +893,15 @@ function createStyles(colors: ThemeColors) {
       color: colors.black,
     },
     sectionHeader: {
-      marginTop: 28,
-      marginBottom: 14,
+      marginTop: 22,
+      marginBottom: 10,
       flexDirection: 'row',
       alignItems: 'flex-end',
       justifyContent: 'space-between',
       gap: 12,
     },
     list: {
-      gap: 16,
+      gap: 12,
     },
     budgetAutomationWrapper: {
       gap: 8,
@@ -899,7 +909,7 @@ function createStyles(colors: ThemeColors) {
     budgetAutomationPanel: {
       backgroundColor: colors.surface,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       borderRadius: 20,
       padding: 13,
       marginTop: -2,
@@ -941,7 +951,7 @@ function createStyles(colors: ThemeColors) {
       borderRadius: 14,
       backgroundColor: colors.surfaceSoft,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       padding: 10,
     },
     miniMetricValue: {
@@ -957,7 +967,7 @@ function createStyles(colors: ThemeColors) {
     emptyCard: {
       backgroundColor: colors.surface,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       borderRadius: 22,
       padding: 18,
     },

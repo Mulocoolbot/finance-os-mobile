@@ -3,6 +3,7 @@ import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { SavingGoalCard } from '../src/components/cards/SavingGoalCard';
+import { AnimatedPressable } from '../src/components/ui/AnimatedPressable';
 import { AppText } from '../src/components/ui/AppText';
 import { Screen } from '../src/components/ui/Screen';
 import { StatCard } from '../src/components/ui/StatCard';
@@ -122,18 +123,14 @@ export default function SavingsScreen() {
         </Pressable>
 
         <View style={styles.headerText}>
-          <AppText variant="caption" muted>
-            Finance OS Mobile
-          </AppText>
-
           <AppText variant="title" style={styles.title}>
             Savings
           </AppText>
         </View>
 
-        <Pressable onPress={() => router.push('/add-saving')} style={styles.addButton}>
+        <AnimatedPressable onPress={() => router.push('/add-saving')} style={styles.addButton}>
           <Ionicons name="add-outline" size={24} color={colors.black} />
-        </Pressable>
+        </AnimatedPressable>
       </View>
 
       <View style={styles.heroCard}>
@@ -147,9 +144,7 @@ export default function SavingsScreen() {
               {formatCompactCurrency(savingSummary.totalSaved, defaultCurrency)}
             </AppText>
 
-            <AppText variant="caption" muted style={styles.fullValue}>
-              {formatCurrency(savingSummary.totalSaved, defaultCurrency)}
-            </AppText>
+
           </View>
 
           <View style={styles.heroBadge}>
@@ -165,7 +160,7 @@ export default function SavingsScreen() {
         </View>
 
         <AppText variant="caption" muted style={styles.heroCaption}>
-          {savingSummary.progress.toFixed(0)}% of all saving targets completed.
+          {savingSummary.progress.toFixed(0)}% completed.
         </AppText>
       </View>
 
@@ -181,7 +176,7 @@ export default function SavingsScreen() {
           const isActive = selectedFilter === filter.value;
 
           return (
-            <Pressable
+            <AnimatedPressable
               key={filter.value}
               onPress={() => setSelectedFilter(filter.value)}
               style={[styles.filterPill, isActive && styles.filterPillActive]}
@@ -189,7 +184,7 @@ export default function SavingsScreen() {
               <AppText variant="caption" style={[styles.filterText, isActive && styles.filterTextActive]}>
                 {filter.label}
               </AppText>
-            </Pressable>
+            </AnimatedPressable>
           );
         })}
       </View>
@@ -244,7 +239,7 @@ export default function SavingsScreen() {
 function createStyles(colors: ThemeColors) {
   return StyleSheet.create({
     header: {
-      marginBottom: 22,
+      marginBottom: 18,
       flexDirection: 'row',
       alignItems: 'center',
       gap: 14,
@@ -255,17 +250,22 @@ function createStyles(colors: ThemeColors) {
       borderRadius: 16,
       backgroundColor: colors.surface,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       alignItems: 'center',
       justifyContent: 'center',
     },
     addButton: {
-      width: 44,
-      height: 44,
-      borderRadius: 16,
+      width: 46,
+      height: 46,
+      borderRadius: 18,
       backgroundColor: colors.primary,
       alignItems: 'center',
       justifyContent: 'center',
+      shadowColor: colors.shadow,
+      shadowOpacity: 0.22,
+      shadowRadius: 12,
+      shadowOffset: { width: 0, height: 6 },
+      elevation: 3,
     },
     headerText: {
       flex: 1,
@@ -275,12 +275,17 @@ function createStyles(colors: ThemeColors) {
       marginTop: 4,
     },
     heroCard: {
-      backgroundColor: colors.surface,
+      backgroundColor: colors.surfaceRaised,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       borderRadius: 28,
-      padding: 22,
-      marginBottom: 18,
+      padding: 20,
+      marginBottom: 14,
+      shadowColor: colors.shadow,
+      shadowOpacity: 0.14,
+      shadowRadius: 14,
+      shadowOffset: { width: 0, height: 8 },
+      elevation: 2,
     },
     heroTop: {
       flexDirection: 'row',
@@ -293,18 +298,19 @@ function createStyles(colors: ThemeColors) {
       minWidth: 0,
     },
     totalSaved: {
-      marginTop: 8,
-      fontSize: 34,
-      lineHeight: 40,
+      marginTop: 7,
+      fontSize: 36,
+      lineHeight: 42,
       color: colors.saving,
+      letterSpacing: -0.8,
     },
     fullValue: {
       marginTop: 4,
     },
     heroBadge: {
-      backgroundColor: colors.surfaceSoft,
+      backgroundColor: colors.savingSoft,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       borderRadius: 999,
       paddingHorizontal: 10,
       paddingVertical: 7,
@@ -335,10 +341,10 @@ function createStyles(colors: ThemeColors) {
     grid: {
       flexDirection: 'row',
       flexWrap: 'wrap',
-      gap: 12,
+      gap: 10,
     },
     filterRow: {
-      marginTop: 20,
+      marginTop: 16,
       flexDirection: 'row',
       flexWrap: 'wrap',
       gap: 8,
@@ -346,7 +352,7 @@ function createStyles(colors: ThemeColors) {
     filterPill: {
       backgroundColor: colors.surface,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       borderRadius: 999,
       paddingHorizontal: 12,
       paddingVertical: 8,
@@ -363,20 +369,20 @@ function createStyles(colors: ThemeColors) {
       color: colors.black,
     },
     sectionHeader: {
-      marginTop: 28,
-      marginBottom: 14,
+      marginTop: 22,
+      marginBottom: 10,
       flexDirection: 'row',
       alignItems: 'flex-end',
       justifyContent: 'space-between',
       gap: 12,
     },
     list: {
-      gap: 12,
+      gap: 10,
     },
     emptyCard: {
       backgroundColor: colors.surface,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       borderRadius: 22,
       padding: 18,
     },

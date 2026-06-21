@@ -1,7 +1,8 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { Alert, StyleSheet, TextInput, View } from 'react-native';
+import { AnimatedPressable } from '../src/components/ui/AnimatedPressable';
 import { AppText } from '../src/components/ui/AppText';
 import { Screen } from '../src/components/ui/Screen';
 import { ThemeColors } from '../src/constants/colors';
@@ -25,31 +26,31 @@ const walletKinds: {
     label: 'Web3',
     value: 'web3',
     icon: 'globe-outline',
-    description: 'MetaMask, Trust Wallet, Phantom, Rabby, and other self-custody wallets.',
+    description: 'Self-custody wallet.',
   },
   {
     label: 'CEX',
     value: 'cex',
     icon: 'business-outline',
-    description: 'Exchange wallet such as Binance, OKX, Bybit, Coinbase, and others.',
+    description: 'Exchange wallet.',
   },
   {
     label: 'Hardware',
     value: 'hardware',
     icon: 'hardware-chip-outline',
-    description: 'Ledger, Trezor, SafePal, and hardware wallets.',
+    description: 'Hardware wallet.',
   },
   {
     label: 'Custodial',
     value: 'custodial',
     icon: 'shield-checkmark-outline',
-    description: 'Wallet managed by another service or broker.',
+    description: 'Managed wallet.',
   },
   {
     label: 'Other',
     value: 'other',
     icon: 'wallet-outline',
-    description: 'Other crypto wallet type.',
+    description: 'Other wallet.',
   },
 ];
 
@@ -111,7 +112,7 @@ export default function CryptoWalletsScreen() {
   const [assetResults, setAssetResults] = useState<InvestmentAssetSearchResult[]>([]);
   const [selectedAssets, setSelectedAssets] = useState<InvestmentAssetSearchResult[]>([]);
   const [assetStatus, setAssetStatus] = useState(
-    'Search crypto assets from the API/provider. Only selected API results can be saved.'
+    'Search API/provider assets.'
   );
   const [isSearching, setIsSearching] = useState(false);
 
@@ -121,14 +122,14 @@ export default function CryptoWalletsScreen() {
     if (query.length < 2) {
       setAssetResults([]);
       setIsSearching(false);
-      setAssetStatus('Type at least 2 characters to search crypto assets from API/provider.');
+      setAssetStatus('Type 2+ characters.');
       return;
     }
 
     let cancelled = false;
     const timeout = setTimeout(async () => {
       setIsSearching(true);
-      setAssetStatus('Searching crypto API/provider...');
+      setAssetStatus('Searching provider...');
 
       try {
         const results = await searchInvestmentAssets(query, 'crypto', 16);
@@ -212,16 +213,16 @@ export default function CryptoWalletsScreen() {
       setSelectedAssets([]);
       setAssetQuery('');
       setAssetResults([]);
-      setAssetStatus('Wallet saved. Search API/provider again to add another wallet.');
+      setAssetStatus('Wallet saved.');
     }
   }
 
   return (
     <Screen>
       <View style={styles.header}>
-        <Pressable onPress={() => router.back()} style={styles.backButton}>
+        <AnimatedPressable onPress={() => router.back()} style={styles.backButton}>
           <Ionicons name="chevron-back-outline" size={22} color={colors.text} />
-        </Pressable>
+        </AnimatedPressable>
 
         <View style={styles.headerText}>
           <AppText variant="caption" muted>
@@ -243,7 +244,7 @@ export default function CryptoWalletsScreen() {
           <AppText variant="subtitle">Wallet Manager</AppText>
 
           <AppText variant="body" muted style={styles.heroDescription}>
-            Save Web3, exchange, hardware, or custodial wallet profiles. Crypto assets must be selected from API/provider results.
+            Save wallet profiles with provider-backed crypto assets.
           </AppText>
         </View>
       </View>
@@ -252,7 +253,7 @@ export default function CryptoWalletsScreen() {
         <AppText variant="subtitle">Add Crypto Wallet</AppText>
 
         <AppText variant="caption" muted>
-          API/provider assets only
+          Provider assets
         </AppText>
       </View>
 
@@ -281,7 +282,7 @@ export default function CryptoWalletsScreen() {
               const active = walletKind === item.value;
 
               return (
-                <Pressable
+                <AnimatedPressable
                   key={item.value}
                   onPress={() => setWalletKind(item.value)}
                   style={[styles.optionCard, active ? styles.optionCardActive : null]}
@@ -310,7 +311,7 @@ export default function CryptoWalletsScreen() {
                       {item.description}
                     </AppText>
                   </View>
-                </Pressable>
+                </AnimatedPressable>
               );
             })}
           </View>
@@ -347,7 +348,7 @@ export default function CryptoWalletsScreen() {
 
         <View style={styles.field}>
           <AppText variant="caption" muted style={styles.label}>
-            Wallet Value Currency
+            Value Currency
           </AppText>
 
           <View style={styles.currencyRow}>
@@ -355,7 +356,7 @@ export default function CryptoWalletsScreen() {
               const active = currency === item;
 
               return (
-                <Pressable
+                <AnimatedPressable
                   key={item}
                   onPress={() => setCurrency(item)}
                   style={[styles.currencyChip, active ? styles.currencyChipActive : null]}
@@ -366,7 +367,7 @@ export default function CryptoWalletsScreen() {
                   >
                     {item}
                   </AppText>
-                </Pressable>
+                </AnimatedPressable>
               );
             })}
           </View>
@@ -374,7 +375,7 @@ export default function CryptoWalletsScreen() {
 
         <View style={styles.field}>
           <AppText variant="caption" muted style={styles.label}>
-            Search Crypto From API / Provider
+            Search Crypto
           </AppText>
 
           <TextInput
@@ -406,7 +407,7 @@ export default function CryptoWalletsScreen() {
                 );
 
                 return (
-                  <Pressable
+                  <AnimatedPressable
                     key={asset.id}
                     onPress={() => toggleAsset(asset)}
                     style={[styles.resultCard, active ? styles.resultCardActive : null]}
@@ -434,7 +435,7 @@ export default function CryptoWalletsScreen() {
                       size={20}
                       color={active ? colors.black : colors.textMuted}
                     />
-                  </Pressable>
+                  </AnimatedPressable>
                 );
               })}
             </View>
@@ -443,20 +444,20 @@ export default function CryptoWalletsScreen() {
 
         <View style={styles.field}>
           <AppText variant="caption" muted style={styles.label}>
-            Selected API Crypto Assets
+            Selected Assets
           </AppText>
 
           <View style={styles.selectedRow}>
             {selectedAssets.length === 0 ? (
               <View style={styles.emptySelected}>
                 <AppText variant="caption" muted>
-                  No API asset selected yet.
+                  No asset selected.
                 </AppText>
               </View>
             ) : null}
 
             {selectedAssets.map((asset) => (
-              <Pressable
+              <AnimatedPressable
                 key={asset.id}
                 onPress={() => toggleAsset(asset)}
                 style={styles.selectedPill}
@@ -466,18 +467,18 @@ export default function CryptoWalletsScreen() {
                 </AppText>
 
                 <Ionicons name="close-outline" size={14} color={colors.text} />
-              </Pressable>
+              </AnimatedPressable>
             ))}
           </View>
         </View>
 
-        <Pressable onPress={handleCreateWallet} style={styles.submitButton}>
+        <AnimatedPressable onPress={handleCreateWallet} style={styles.submitButton}>
           <Ionicons name="add-outline" size={18} color={colors.black} />
 
           <AppText variant="body" style={styles.submitText}>
             Save Crypto Wallet
           </AppText>
-        </Pressable>
+        </AnimatedPressable>
       </View>
 
       <View style={styles.sectionHeader}>
@@ -491,10 +492,10 @@ export default function CryptoWalletsScreen() {
       <View style={styles.walletList}>
         {cryptoWallets.length === 0 ? (
           <View style={styles.emptyCard}>
-            <AppText variant="subtitle">No crypto wallet yet</AppText>
+            <AppText variant="subtitle">No wallet yet</AppText>
 
             <AppText variant="body" muted style={styles.emptyDescription}>
-              Search crypto assets from API/provider and save your first wallet profile.
+              Search provider assets and save your first wallet.
             </AppText>
           </View>
         ) : null}
@@ -544,14 +545,14 @@ function CryptoWalletCard({
 
         <View style={styles.walletBadge}>
           <AppText variant="caption" style={styles.walletBadgeText}>
-            API Assets
+            Assets
           </AppText>
         </View>
       </View>
 
       <View style={styles.walletInfoBox}>
         <AppText variant="caption" muted>
-          Address / ID
+          Address
         </AppText>
 
         <AppText variant="caption" style={styles.walletAddress} numberOfLines={2}>
@@ -572,7 +573,7 @@ function CryptoWalletCard({
 
         <View style={styles.walletMetric}>
           <AppText variant="caption" muted>
-            Wallet Value
+            Value
           </AppText>
 
           <AppText variant="body" style={styles.walletMetricValue}>
@@ -605,7 +606,7 @@ function CryptoWalletCard({
 function createStyles(colors: ThemeColors) {
   return StyleSheet.create({
     header: {
-      marginBottom: 22,
+      marginBottom: 18,
       flexDirection: 'row',
       alignItems: 'center',
       gap: 14,
@@ -616,7 +617,7 @@ function createStyles(colors: ThemeColors) {
       borderRadius: 16,
       backgroundColor: colors.surface,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       alignItems: 'center',
       justifyContent: 'center',
     },
@@ -628,22 +629,27 @@ function createStyles(colors: ThemeColors) {
       marginTop: 4,
     },
     heroCard: {
-      backgroundColor: colors.surface,
+      backgroundColor: colors.surfaceRaised,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       borderRadius: 28,
-      padding: 18,
+      padding: 16,
       flexDirection: 'row',
-      gap: 14,
+      gap: 13,
       alignItems: 'center',
+      shadowColor: colors.shadow,
+      shadowOpacity: 0.14,
+      shadowRadius: 14,
+      shadowOffset: { width: 0, height: 8 },
+      elevation: 2,
     },
     heroIcon: {
-      width: 52,
-      height: 52,
+      width: 50,
+      height: 50,
       borderRadius: 18,
-      backgroundColor: colors.surfaceSoft,
+      backgroundColor: colors.investmentSoft,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       alignItems: 'center',
       justifyContent: 'center',
     },
@@ -652,12 +658,12 @@ function createStyles(colors: ThemeColors) {
       minWidth: 0,
     },
     heroDescription: {
-      marginTop: 6,
-      lineHeight: 21,
+      marginTop: 5,
+      lineHeight: 17,
     },
     sectionHeader: {
-      marginTop: 28,
-      marginBottom: 14,
+      marginTop: 22,
+      marginBottom: 10,
       flexDirection: 'row',
       alignItems: 'flex-end',
       justifyContent: 'space-between',
@@ -666,10 +672,10 @@ function createStyles(colors: ThemeColors) {
     formCard: {
       backgroundColor: colors.surface,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       borderRadius: 24,
-      padding: 16,
-      gap: 18,
+      padding: 14,
+      gap: 14,
     },
     field: {
       gap: 9,
@@ -682,7 +688,7 @@ function createStyles(colors: ThemeColors) {
       borderRadius: 18,
       backgroundColor: colors.surfaceSoft,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       color: colors.text,
       paddingHorizontal: 15,
       fontSize: 14,
@@ -695,11 +701,11 @@ function createStyles(colors: ThemeColors) {
       borderRadius: 20,
       backgroundColor: colors.surfaceSoft,
       borderWidth: 1,
-      borderColor: colors.border,
-      padding: 13,
+      borderColor: colors.borderSoft,
+      padding: 12,
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 11,
+      gap: 10,
     },
     optionCardActive: {
       backgroundColor: colors.primary,
@@ -727,8 +733,8 @@ function createStyles(colors: ThemeColors) {
       color: colors.black,
     },
     optionDescription: {
-      marginTop: 4,
-      lineHeight: 18,
+      marginTop: 3,
+      lineHeight: 16,
     },
     optionDescriptionActive: {
       color: 'rgba(0,0,0,0.68)',
@@ -742,7 +748,7 @@ function createStyles(colors: ThemeColors) {
       borderRadius: 15,
       backgroundColor: colors.surfaceSoft,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       paddingHorizontal: 16,
       alignItems: 'center',
       justifyContent: 'center',
@@ -762,7 +768,7 @@ function createStyles(colors: ThemeColors) {
       borderRadius: 18,
       backgroundColor: colors.surfaceSoft,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       padding: 12,
       flexDirection: 'row',
       gap: 9,
@@ -779,7 +785,7 @@ function createStyles(colors: ThemeColors) {
       borderRadius: 18,
       backgroundColor: colors.surfaceSoft,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       padding: 12,
       flexDirection: 'row',
       alignItems: 'center',
@@ -812,7 +818,7 @@ function createStyles(colors: ThemeColors) {
       borderRadius: 16,
       backgroundColor: colors.surfaceSoft,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       paddingHorizontal: 12,
       paddingVertical: 10,
     },
@@ -843,15 +849,15 @@ function createStyles(colors: ThemeColors) {
       fontWeight: '900',
     },
     walletList: {
-      gap: 12,
+      gap: 10,
     },
     walletCard: {
       backgroundColor: colors.surface,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       borderRadius: 24,
-      padding: 15,
-      gap: 13,
+      padding: 14,
+      gap: 11,
     },
     walletHeader: {
       flexDirection: 'row',
@@ -864,7 +870,7 @@ function createStyles(colors: ThemeColors) {
       borderRadius: 17,
       backgroundColor: colors.surfaceSoft,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       alignItems: 'center',
       justifyContent: 'center',
     },
@@ -880,7 +886,7 @@ function createStyles(colors: ThemeColors) {
       borderRadius: 999,
       backgroundColor: colors.surfaceSoft,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       paddingHorizontal: 9,
       paddingVertical: 5,
     },
@@ -893,7 +899,7 @@ function createStyles(colors: ThemeColors) {
       borderRadius: 17,
       backgroundColor: colors.surfaceSoft,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       padding: 12,
     },
     walletAddress: {
@@ -911,7 +917,7 @@ function createStyles(colors: ThemeColors) {
       borderRadius: 16,
       backgroundColor: colors.surfaceSoft,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       padding: 11,
     },
     walletMetricValue: {
@@ -928,7 +934,7 @@ function createStyles(colors: ThemeColors) {
       borderRadius: 999,
       backgroundColor: colors.surfaceSoft,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       paddingHorizontal: 9,
       paddingVertical: 5,
     },
@@ -940,7 +946,7 @@ function createStyles(colors: ThemeColors) {
     emptyCard: {
       backgroundColor: colors.surface,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       borderRadius: 22,
       padding: 18,
     },

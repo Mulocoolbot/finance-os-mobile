@@ -7,6 +7,7 @@ import { NumericAmountInput } from '../src/components/ui/NumericAmountInput';
 import { Screen } from '../src/components/ui/Screen';
 import { ThemeColors } from '../src/constants/colors';
 import { useThemeColors } from '../src/hooks/useThemeColors';
+import { useAppToast } from '../src/components/ui/AppToast';
 import { useFinanceStore } from '../src/stores/useFinanceStore';
 import { BudgetPeriod, Currency } from '../src/types/finance';
 import { formatCurrency } from '../src/utils/currency';
@@ -52,6 +53,7 @@ function formatAmountInput(value: number) {
 export default function EditBudgetScreen() {
   const colors = useThemeColors();
   const styles = createStyles(colors);
+  const toast = useAppToast();
   const params = useLocalSearchParams<{ budgetId?: string }>();
 
   const budgets = useFinanceStore((state) => state.budgets);
@@ -111,11 +113,13 @@ export default function EditBudgetScreen() {
       endDate: period === 'custom' ? endDate.trim() : undefined,
     });
 
-    Alert.alert('Finance OS Mobile', result.message);
-
-    if (result.success) {
-      router.back();
+    if (!result.success) {
+      toast.showError('Could Not Update Budget', result.message);
+      return;
     }
+
+    toast.showSuccess('Budget Updated', result.message);
+    router.back();
   }
 
   function handleDelete() {
@@ -214,6 +218,22 @@ export default function EditBudgetScreen() {
       </View>
 
       <View style={styles.form}>
+        <View style={styles.sectionMiniHeader}>
+          <View>
+            <AppText variant="caption" muted>
+              Step 1
+            </AppText>
+
+            <AppText variant="subtitle" style={styles.sectionMiniTitle}>
+              Budget identity
+            </AppText>
+          </View>
+
+          <AppText variant="caption" muted style={styles.sectionMiniHint}>
+            Name & category
+          </AppText>
+        </View>
+
         <View style={styles.field}>
           <AppText variant="caption" muted style={styles.label}>
             Budget Name
@@ -257,6 +277,22 @@ export default function EditBudgetScreen() {
               );
             })}
           </View>
+        </View>
+
+        <View style={styles.sectionMiniHeader}>
+          <View>
+            <AppText variant="caption" muted>
+              Step 2
+            </AppText>
+
+            <AppText variant="subtitle" style={styles.sectionMiniTitle}>
+              Budget period
+            </AppText>
+          </View>
+
+          <AppText variant="caption" muted style={styles.sectionMiniHint}>
+            Weekly / Monthly
+          </AppText>
         </View>
 
         <View style={styles.field}>
@@ -308,6 +344,22 @@ export default function EditBudgetScreen() {
               );
             })}
           </View>
+        </View>
+
+        <View style={styles.sectionMiniHeader}>
+          <View>
+            <AppText variant="caption" muted>
+              Step 3
+            </AppText>
+
+            <AppText variant="subtitle" style={styles.sectionMiniTitle}>
+              Limit & preview
+            </AppText>
+          </View>
+
+          <AppText variant="caption" muted style={styles.sectionMiniHint}>
+            Check target
+          </AppText>
         </View>
 
         <View style={styles.field}>
@@ -406,6 +458,8 @@ export default function EditBudgetScreen() {
         </View>
 
         <Pressable onPress={handleSave} style={styles.saveButton}>
+          <Ionicons name="checkmark-circle-outline" size={19} color={colors.black} />
+
           <AppText variant="body" style={styles.saveButtonText}>
             {budget.isActive ? 'Save Budget Changes' : 'Restore & Save Budget'}
           </AppText>
@@ -493,6 +547,21 @@ function createStyles(colors: ThemeColors) {
     },
     form: {
       gap: 18,
+    },
+    sectionMiniHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'flex-end',
+      gap: 12,
+      marginTop: 4,
+      marginBottom: -4,
+    },
+    sectionMiniTitle: {
+      marginTop: 3,
+      color: colors.text,
+    },
+    sectionMiniHint: {
+      fontWeight: '900',
     },
     field: {
       gap: 9,
@@ -632,6 +701,8 @@ function createStyles(colors: ThemeColors) {
       backgroundColor: colors.primary,
       alignItems: 'center',
       justifyContent: 'center',
+      flexDirection: 'row',
+      gap: 8,
       paddingHorizontal: 18,
     },
     saveButtonText: {

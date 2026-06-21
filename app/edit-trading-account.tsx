@@ -6,6 +6,7 @@ import { AppText } from '../src/components/ui/AppText';
 import { Screen } from '../src/components/ui/Screen';
 import { ThemeColors } from '../src/constants/colors';
 import { useThemeColors } from '../src/hooks/useThemeColors';
+import { useAppToast } from '../src/components/ui/AppToast';
 import {
   TradingAccount,
   TradingAccountType,
@@ -67,6 +68,7 @@ function getRealAmount(accountType: TradingAccountType, value: string) {
 export default function EditTradingAccountScreen() {
   const colors = useThemeColors();
   const styles = createStyles(colors);
+  const toast = useAppToast();
   const params = useLocalSearchParams<{ tradingAccountId?: string }>();
 
   const accounts = useFinanceStore((state) => state.accounts);
@@ -170,11 +172,13 @@ export default function EditTradingAccountScreen() {
       note,
     });
 
-    Alert.alert('Finance OS Mobile', result.message);
-
-    if (result.success) {
-      router.back();
+    if (!result.success) {
+      toast.showError('Could Not Update Trading Account', result.message);
+      return;
     }
+
+    toast.showSuccess('Trading Account Updated', result.message);
+    router.back();
   }
 
   function handleDelete() {
@@ -238,6 +242,22 @@ export default function EditTradingAccountScreen() {
       </View>
 
       <View style={styles.formCard}>
+        <View style={styles.sectionMiniHeader}>
+          <View>
+            <AppText variant="caption" muted>
+              Step 1
+            </AppText>
+
+            <AppText variant="subtitle" style={styles.sectionMiniTitle}>
+              Account identity
+            </AppText>
+          </View>
+
+          <AppText variant="caption" muted style={styles.sectionMiniHint}>
+            Broker info
+          </AppText>
+        </View>
+
         <TextField
           label="Account Name"
           value={name}
@@ -270,6 +290,22 @@ export default function EditTradingAccountScreen() {
           keyboardType="number-pad"
           colors={colors}
         />
+
+        <View style={styles.sectionMiniHeader}>
+          <View>
+            <AppText variant="caption" muted>
+              Step 2
+            </AppText>
+
+            <AppText variant="subtitle" style={styles.sectionMiniTitle}>
+              Platform & account type
+            </AppText>
+          </View>
+
+          <AppText variant="caption" muted style={styles.sectionMiniHint}>
+            Wallet link
+          </AppText>
+        </View>
 
         <ChipGroup
           label="Linked Broker Wallet"
@@ -318,6 +354,22 @@ export default function EditTradingAccountScreen() {
           onChange={setCurrency}
           colors={colors}
         />
+
+        <View style={styles.sectionMiniHeader}>
+          <View>
+            <AppText variant="caption" muted>
+              Step 3
+            </AppText>
+
+            <AppText variant="subtitle" style={styles.sectionMiniTitle}>
+              Balance snapshot
+            </AppText>
+          </View>
+
+          <AppText variant="caption" muted style={styles.sectionMiniHint}>
+            Equity & P/L
+          </AppText>
+        </View>
 
         <TextField
           label="Leverage"
@@ -374,6 +426,22 @@ export default function EditTradingAccountScreen() {
           </AppText>
         </View>
 
+        <View style={styles.sectionMiniHeader}>
+          <View>
+            <AppText variant="caption" muted>
+              Step 4
+            </AppText>
+
+            <AppText variant="subtitle" style={styles.sectionMiniTitle}>
+              Note & save
+            </AppText>
+          </View>
+
+          <AppText variant="caption" muted style={styles.sectionMiniHint}>
+            Final
+          </AppText>
+        </View>
+
         <TextField
           label="Note"
           value={note}
@@ -385,7 +453,7 @@ export default function EditTradingAccountScreen() {
       </View>
 
       <Pressable onPress={handleSave} style={styles.saveButton}>
-        <Ionicons name="save-outline" size={18} color={colors.black} />
+        <Ionicons name="checkmark-circle-outline" size={19} color={colors.black} />
 
         <AppText variant="body" style={styles.saveButtonText}>
           Save Changes
@@ -570,6 +638,21 @@ function createStyles(colors: ThemeColors) {
       padding: 16,
       gap: 15,
       marginBottom: 16,
+    },
+    sectionMiniHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'flex-end',
+      gap: 12,
+      marginTop: 4,
+      marginBottom: -2,
+    },
+    sectionMiniTitle: {
+      marginTop: 3,
+      color: colors.text,
+    },
+    sectionMiniHint: {
+      fontWeight: '900',
     },
     field: {
       gap: 8,

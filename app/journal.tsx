@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { Pressable, StyleSheet, View } from 'react-native';
+import { AnimatedPressable } from '../src/components/ui/AnimatedPressable';
 import { AppText } from '../src/components/ui/AppText';
 import { Screen } from '../src/components/ui/Screen';
 import { ThemeColors } from '../src/constants/colors';
@@ -113,18 +114,14 @@ export default function JournalScreen() {
     <Screen>
       <View style={styles.header}>
         <View>
-          <AppText variant="caption" muted>
-            Finance OS Mobile
-          </AppText>
-
           <AppText variant="title" style={styles.title}>
             Journal
           </AppText>
         </View>
 
-        <Pressable onPress={() => router.push('/add-trading-account' as any)} style={styles.addButton}>
+        <AnimatedPressable onPress={() => router.push('/add-trading-account' as any)} style={styles.addButton}>
           <Ionicons name="add-outline" size={20} color={colors.black} />
-        </Pressable>
+        </AnimatedPressable>
       </View>
 
       <View style={styles.heroCard}>
@@ -135,8 +132,8 @@ export default function JournalScreen() {
         <View style={styles.heroTextBox}>
           <AppText variant="subtitle">Trading Journal</AppText>
 
-          <AppText variant="body" muted style={styles.heroDescription}>
-            Manage the full trading workflow from one hub: accounts, trades, risk plan, cash flow, profit pool, and AI performance review.
+          <AppText variant="caption" muted style={styles.heroDescription}>
+            Accounts, trades, plan, reports, and AI coach.
           </AppText>
         </View>
       </View>
@@ -149,7 +146,7 @@ export default function JournalScreen() {
             </AppText>
 
             <AppText variant="subtitle" style={styles.workspaceTitle}>
-              Workflow overview
+              Overview
             </AppText>
           </View>
 
@@ -157,7 +154,7 @@ export default function JournalScreen() {
             <Ionicons name="pulse-outline" size={15} color={colors.text} />
 
             <AppText variant="caption" style={styles.workspaceBadgeText}>
-              Active
+              Live
             </AppText>
           </View>
         </View>
@@ -195,14 +192,14 @@ export default function JournalScreen() {
         </View>
 
         <AppText variant="caption" muted style={styles.workspaceDescription}>
-          {plannedAccountCount} account{plannedAccountCount === 1 ? '' : 's'} already have a trading plan. Use AI Coach and Profit Pool after closing trades.
+          {plannedAccountCount} planned account{plannedAccountCount === 1 ? '' : 's'}.
         </AppText>
       </View>
 
       <View style={styles.sectionHeader}>
         <AppText variant="subtitle">Trading Tools</AppText>
         <AppText variant="caption" muted>
-          Core workflow
+          Shortcuts
         </AppText>
       </View>
 
@@ -259,7 +256,7 @@ export default function JournalScreen() {
       <View style={styles.sectionHeader}>
         <AppText variant="subtitle">Account Snapshot</AppText>
         <AppText variant="caption" muted>
-          Converted to {defaultCurrency}
+          {defaultCurrency}
         </AppText>
       </View>
 
@@ -397,7 +394,7 @@ function JournalShortcut({
   const styles = createStyles(colors);
 
   return (
-    <Pressable onPress={onPress} style={styles.workflowCard}>
+    <AnimatedPressable onPress={onPress} style={styles.workflowCard}>
       <View style={styles.workflowIcon}>
         <Ionicons name={icon} size={19} color={colors.text} />
       </View>
@@ -411,7 +408,7 @@ function JournalShortcut({
           {description}
         </AppText>
       </View>
-    </Pressable>
+    </AnimatedPressable>
   );
 }
 
@@ -588,7 +585,7 @@ function InfoPill({
 function createStyles(colors: ThemeColors) {
   return StyleSheet.create({
     header: {
-      marginBottom: 22,
+      marginBottom: 18,
       flexDirection: 'row',
       justifyContent: 'space-between',
       alignItems: 'center',
@@ -598,30 +595,40 @@ function createStyles(colors: ThemeColors) {
       marginTop: 4,
     },
     addButton: {
-      width: 44,
-      height: 44,
-      borderRadius: 16,
+      width: 46,
+      height: 46,
+      borderRadius: 18,
       backgroundColor: colors.primary,
       alignItems: 'center',
       justifyContent: 'center',
+      shadowColor: colors.shadow,
+      shadowOpacity: 0.22,
+      shadowRadius: 12,
+      shadowOffset: { width: 0, height: 6 },
+      elevation: 3,
     },
     heroCard: {
-      backgroundColor: colors.surface,
+      backgroundColor: colors.surfaceRaised,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       borderRadius: 28,
-      padding: 18,
+      padding: 16,
       flexDirection: 'row',
-      gap: 14,
-      marginBottom: 16,
+      gap: 13,
+      marginBottom: 14,
+      shadowColor: colors.shadow,
+      shadowOpacity: 0.14,
+      shadowRadius: 14,
+      shadowOffset: { width: 0, height: 8 },
+      elevation: 2,
     },
     heroIcon: {
-      width: 58,
-      height: 58,
-      borderRadius: 22,
-      backgroundColor: colors.surfaceSoft,
+      width: 52,
+      height: 52,
+      borderRadius: 20,
+      backgroundColor: colors.accentSoft,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       alignItems: 'center',
       justifyContent: 'center',
     },
@@ -630,17 +637,17 @@ function createStyles(colors: ThemeColors) {
       minWidth: 0,
     },
     heroDescription: {
-      marginTop: 7,
-      lineHeight: 21,
+      marginTop: 5,
+      lineHeight: 17,
     },
     workspaceCard: {
       backgroundColor: colors.surface,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       borderRadius: 24,
-      padding: 16,
-      marginTop: 2,
-      marginBottom: 4,
+      padding: 14,
+      marginTop: 0,
+      marginBottom: 2,
     },
     workspaceHeader: {
       flexDirection: 'row',
@@ -654,9 +661,9 @@ function createStyles(colors: ThemeColors) {
     workspaceBadge: {
       minHeight: 32,
       borderRadius: 999,
-      backgroundColor: colors.surfaceSoft,
+      backgroundColor: colors.incomeSoft,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       paddingHorizontal: 10,
       flexDirection: 'row',
       alignItems: 'center',
@@ -667,17 +674,17 @@ function createStyles(colors: ThemeColors) {
       fontWeight: '900',
     },
     workspaceMetricRow: {
-      marginTop: 14,
+      marginTop: 12,
       flexDirection: 'row',
-      gap: 10,
+      gap: 8,
     },
     workspaceMetric: {
       flex: 1,
-      minHeight: 66,
+      minHeight: 60,
       borderRadius: 16,
       backgroundColor: colors.surfaceSoft,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       padding: 10,
       justifyContent: 'center',
     },
@@ -686,35 +693,35 @@ function createStyles(colors: ThemeColors) {
       color: colors.text,
     },
     workspaceDescription: {
-      marginTop: 12,
-      lineHeight: 19,
+      marginTop: 10,
+      lineHeight: 17,
     },
     workflowGrid: {
       marginTop: 0,
       flexDirection: 'row',
       flexWrap: 'wrap',
-      gap: 10,
+      gap: 9,
     },
     workflowCard: {
       flexGrow: 1,
       flexBasis: '47%',
-      minHeight: 72,
+      minHeight: 68,
       borderRadius: 20,
       backgroundColor: colors.surface,
       borderWidth: 1,
-      borderColor: colors.border,
-      padding: 12,
+      borderColor: colors.borderSoft,
+      padding: 11,
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 10,
+      gap: 9,
     },
     workflowIcon: {
-      width: 38,
-      height: 38,
+      width: 36,
+      height: 36,
       borderRadius: 15,
-      backgroundColor: colors.surfaceSoft,
+      backgroundColor: colors.primarySoft,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       alignItems: 'center',
       justifyContent: 'center',
     },
@@ -731,8 +738,8 @@ function createStyles(colors: ThemeColors) {
       lineHeight: 16,
     },
     sectionHeader: {
-      marginTop: 10,
-      marginBottom: 12,
+      marginTop: 14,
+      marginBottom: 10,
       flexDirection: 'row',
       justifyContent: 'space-between',
       alignItems: 'flex-end',
@@ -750,10 +757,10 @@ function createStyles(colors: ThemeColors) {
       minWidth: 140,
       backgroundColor: colors.surface,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       borderRadius: 22,
-      padding: 14,
-      gap: 7,
+      padding: 13,
+      gap: 6,
     },
     metricIcon: {
       width: 34,

@@ -7,6 +7,7 @@ import { NumericAmountInput } from '../src/components/ui/NumericAmountInput';
 import { Screen } from '../src/components/ui/Screen';
 import { ThemeColors } from '../src/constants/colors';
 import { useThemeColors } from '../src/hooks/useThemeColors';
+import { useAppToast } from '../src/components/ui/AppToast';
 import { useFinanceStore } from '../src/stores/useFinanceStore';
 import { Account, Category, Transaction } from '../src/types/finance';
 import { formatCurrency } from '../src/utils/currency';
@@ -25,6 +26,7 @@ function canEditDirectly(transaction: Transaction) {
 export default function EditTransactionScreen() {
   const colors = useThemeColors();
   const styles = createStyles(colors);
+  const toast = useAppToast();
   const params = useLocalSearchParams<{ transactionId?: string }>();
   const transactionId =
     typeof params.transactionId === 'string' ? params.transactionId : '';
@@ -62,13 +64,13 @@ export default function EditTransactionScreen() {
 
   function handleSubmit() {
     if (!transaction) {
-      Alert.alert('Finance OS Mobile', 'Transaction not found.');
+      toast.showWarning('Transaction Missing', 'Transaction not found.');
       return;
     }
 
     if (!canEditDirectly(transaction)) {
-      Alert.alert(
-        'Finance OS Mobile',
+      toast.showWarning(
+        'Cannot Edit Directly',
         'Only normal income and expense transactions can be edited directly.'
       );
       return;
@@ -84,11 +86,13 @@ export default function EditTransactionScreen() {
       note,
     });
 
-    Alert.alert('Finance OS Mobile', result.message);
-
-    if (result.success) {
-      router.back();
+    if (!result.success) {
+      toast.showError('Could Not Update Transaction', result.message);
+      return;
     }
+
+    toast.showSuccess('Transaction Updated', result.message);
+    router.back();
   }
 
   if (!transaction) {
@@ -150,6 +154,22 @@ export default function EditTransactionScreen() {
       </View>
 
       <View style={styles.form}>
+        <View style={styles.sectionMiniHeader}>
+          <View>
+            <AppText variant="caption" muted>
+              Step 1
+            </AppText>
+
+            <AppText variant="subtitle" style={styles.sectionMiniTitle}>
+              Transaction identity
+            </AppText>
+          </View>
+
+          <AppText variant="caption" muted style={styles.sectionMiniHint}>
+            Title
+          </AppText>
+        </View>
+
         <View style={styles.field}>
           <AppText variant="caption" muted style={styles.label}>
             Title
@@ -164,6 +184,22 @@ export default function EditTransactionScreen() {
           />
         </View>
 
+        <View style={styles.sectionMiniHeader}>
+          <View>
+            <AppText variant="caption" muted>
+              Step 2
+            </AppText>
+
+            <AppText variant="subtitle" style={styles.sectionMiniTitle}>
+              Amount impact
+            </AppText>
+          </View>
+
+          <AppText variant="caption" muted style={styles.sectionMiniHint}>
+            Balance-safe
+          </AppText>
+        </View>
+
         <NumericAmountInput
           label="Amount"
           value={amount}
@@ -174,6 +210,22 @@ export default function EditTransactionScreen() {
           quickValues={currency === 'IDR' ? ['50000', '100000', '500000'] : ['10', '50', '100']}
           helperText="Editing will roll back the old balance impact and apply the new one."
         />
+
+        <View style={styles.sectionMiniHeader}>
+          <View>
+            <AppText variant="caption" muted>
+              Step 3
+            </AppText>
+
+            <AppText variant="subtitle" style={styles.sectionMiniTitle}>
+              Account & category
+            </AppText>
+          </View>
+
+          <AppText variant="caption" muted style={styles.sectionMiniHint}>
+            Routing
+          </AppText>
+        </View>
 
         <AccountPicker
           accounts={availableAccounts}
@@ -188,6 +240,22 @@ export default function EditTransactionScreen() {
           onSelect={setCategoryId}
           colors={colors}
         />
+
+        <View style={styles.sectionMiniHeader}>
+          <View>
+            <AppText variant="caption" muted>
+              Step 4
+            </AppText>
+
+            <AppText variant="subtitle" style={styles.sectionMiniTitle}>
+              Date, note & save
+            </AppText>
+          </View>
+
+          <AppText variant="caption" muted style={styles.sectionMiniHint}>
+            Final
+          </AppText>
+        </View>
 
         <View style={styles.field}>
           <AppText variant="caption" muted style={styles.label}>
@@ -219,6 +287,8 @@ export default function EditTransactionScreen() {
         </View>
 
         <Pressable onPress={handleSubmit} style={styles.submitButton}>
+          <Ionicons name="checkmark-circle-outline" size={19} color={colors.black} />
+
           <AppText variant="body" style={styles.submitText}>
             Update Transaction
           </AppText>
@@ -364,6 +434,21 @@ function createStyles(colors: ThemeColors) {
     form: {
       gap: 18,
     },
+    sectionMiniHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'flex-end',
+      gap: 12,
+      marginTop: 4,
+      marginBottom: -4,
+    },
+    sectionMiniTitle: {
+      marginTop: 3,
+      color: colors.text,
+    },
+    sectionMiniHint: {
+      fontWeight: '900',
+    },
     field: {
       gap: 10,
     },
@@ -453,6 +538,8 @@ function createStyles(colors: ThemeColors) {
       backgroundColor: colors.primary,
       alignItems: 'center',
       justifyContent: 'center',
+      flexDirection: 'row',
+      gap: 8,
     },
     submitText: {
       color: colors.black,

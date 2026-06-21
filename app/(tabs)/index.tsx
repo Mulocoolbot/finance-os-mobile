@@ -3,6 +3,7 @@ import { router } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { AppText } from '../../src/components/ui/AppText';
+import { AnimatedPressable } from '../../src/components/ui/AnimatedPressable';
 import { Screen } from '../../src/components/ui/Screen';
 import { StatCard } from '../../src/components/ui/StatCard';
 import { ThemeColors } from '../../src/constants/colors';
@@ -527,21 +528,17 @@ export default function HomeScreen() {
     <Screen>
       <View style={styles.header}>
         <View>
-          <AppText variant="caption" muted>
-            Finance OS Mobile
-          </AppText>
-
           <AppText variant="title" style={styles.title}>
             Dashboard
           </AppText>
         </View>
 
-        <Pressable
+        <AnimatedPressable
           onPress={() => router.push('/add-transaction')}
           style={styles.headerAction}
         >
           <Ionicons name="add-outline" size={24} color={colors.black} />
-        </Pressable>
+        </AnimatedPressable>
       </View>
 
       <View style={styles.heroCard}>
@@ -555,16 +552,14 @@ export default function HomeScreen() {
               {formatCompactCurrency(dashboard.netWorth, defaultCurrency)}
             </AppText>
 
-            <AppText variant="caption" muted style={styles.netWorthFull}>
-              {formatCurrency(dashboard.netWorth, defaultCurrency)}
-            </AppText>
+
           </View>
 
           <View style={styles.heroBadge}>
             <Ionicons name="pulse-outline" size={15} color={colors.income} />
 
             <AppText variant="caption" style={styles.heroBadgeText}>
-              Active
+              Live
             </AppText>
           </View>
         </View>
@@ -574,7 +569,7 @@ export default function HomeScreen() {
         <View style={styles.heroStats}>
           <View style={styles.heroStatItem}>
             <AppText variant="caption" muted>
-              Available
+              Cash
             </AppText>
 
             <AppText variant="body" style={styles.heroStatValue}>
@@ -684,9 +679,7 @@ export default function HomeScreen() {
 
         <View style={styles.liveRateFooter}>
           <AppText variant="caption" muted style={styles.liveRateFooterText}>
-            {exchangeRateLastError
-              ? 'Using last saved rate because live update is temporarily unavailable.'
-              : 'Rates update automatically while the app is active.'}
+            {exchangeRateLastError ? 'Using saved rate.' : 'Auto updated.'}
           </AppText>
         </View>
       </View>
@@ -712,13 +705,6 @@ export default function HomeScreen() {
         />
 
         <QuickAction
-          icon="sparkles-outline"
-          label="Savings"
-          onPress={() => router.push('/savings')}
-          colors={colors}
-        />
-
-        <QuickAction
           icon="wallet-outline"
           label="Accounts"
           onPress={() => router.push('/accounts')}
@@ -733,13 +719,6 @@ export default function HomeScreen() {
         />
 
         <QuickAction
-          icon="bar-chart-outline"
-          label="Reports"
-          onPress={() => router.push('/reports')}
-          colors={colors}
-        />
-
-        <QuickAction
           icon="book-outline"
           label="Journal"
           onPress={() => router.push('/journal')}
@@ -747,16 +726,9 @@ export default function HomeScreen() {
         />
 
         <QuickAction
-          icon="sparkles-outline"
-          label="AI Coach"
-          onPress={() => router.push('/trading-ai-performance')}
-          colors={colors}
-        />
-
-        <QuickAction
-          icon="pie-chart-outline"
-          label="Profit Pool"
-          onPress={() => router.push('/trading-profit-pool')}
+          icon="bar-chart-outline"
+          label="Reports"
+          onPress={() => router.push('/reports')}
           colors={colors}
         />
       </ScrollView>
@@ -772,9 +744,7 @@ export default function HomeScreen() {
               </AppText>
             </View>
 
-            <AppText variant="caption" muted style={styles.netWorthHistoryDescription}>
-              Realtime value with auto daily history.
-            </AppText>
+
           </View>
 
           <Pressable
@@ -1298,15 +1268,15 @@ function QuickAction({ icon, label, onPress, colors }: QuickActionProps) {
   const styles = createStyles(colors);
 
   return (
-    <Pressable onPress={onPress} style={styles.quickActionCard}>
+    <AnimatedPressable onPress={onPress} style={styles.quickActionCard}>
       <View style={styles.quickActionIcon}>
-        <Ionicons name={icon as any} size={22} color={colors.text} />
+        <Ionicons name={icon as any} size={21} color={colors.text} />
       </View>
 
       <AppText variant="caption" style={styles.quickActionLabel}>
         {label}
       </AppText>
-    </Pressable>
+    </AnimatedPressable>
   );
 }
 
@@ -1374,7 +1344,7 @@ function RecentTransactionRow({
 function createStyles(colors: ThemeColors) {
   return StyleSheet.create({
     header: {
-      marginBottom: 22,
+      marginBottom: 18,
       flexDirection: 'row',
       justifyContent: 'space-between',
       alignItems: 'center',
@@ -1383,20 +1353,30 @@ function createStyles(colors: ThemeColors) {
       marginTop: 4,
     },
     headerAction: {
-      width: 44,
-      height: 44,
-      borderRadius: 16,
+      width: 46,
+      height: 46,
+      borderRadius: 18,
       backgroundColor: colors.primary,
       alignItems: 'center',
       justifyContent: 'center',
+      shadowColor: colors.shadow,
+      shadowOpacity: 0.22,
+      shadowRadius: 12,
+      shadowOffset: { width: 0, height: 6 },
+      elevation: 3,
     },
     heroCard: {
-      backgroundColor: colors.surface,
+      backgroundColor: colors.surfaceRaised,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       borderRadius: 30,
-      padding: 22,
+      padding: 20,
       overflow: 'hidden',
+      shadowColor: colors.shadow,
+      shadowOpacity: 0.18,
+      shadowRadius: 18,
+      shadowOffset: { width: 0, height: 10 },
+      elevation: 3,
     },
     heroTop: {
       flexDirection: 'row',
@@ -1409,9 +1389,10 @@ function createStyles(colors: ThemeColors) {
       minWidth: 0,
     },
     netWorth: {
-      marginTop: 8,
-      fontSize: 34,
-      lineHeight: 40,
+      marginTop: 7,
+      fontSize: 36,
+      lineHeight: 42,
+      letterSpacing: -1,
     },
     netWorthFull: {
       marginTop: 4,
@@ -1421,9 +1402,9 @@ function createStyles(colors: ThemeColors) {
       flexDirection: 'row',
       alignItems: 'center',
       gap: 6,
-      backgroundColor: colors.surfaceSoft,
+      backgroundColor: colors.incomeSoft,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.income,
       borderRadius: 999,
       paddingHorizontal: 10,
       paddingVertical: 7,
@@ -1434,8 +1415,8 @@ function createStyles(colors: ThemeColors) {
     },
     heroDivider: {
       height: 1,
-      backgroundColor: colors.border,
-      marginVertical: 18,
+      backgroundColor: colors.borderSoft,
+      marginVertical: 16,
     },
     heroStats: {
       flexDirection: 'row',
@@ -1452,13 +1433,13 @@ function createStyles(colors: ThemeColors) {
       lineHeight: 20,
     },
     liveRateCard: {
-      marginTop: 18,
+      marginTop: 14,
       backgroundColor: colors.surface,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       borderRadius: 24,
-      padding: 16,
-      gap: 14,
+      padding: 14,
+      gap: 12,
     },
     liveRateHeader: {
       flexDirection: 'row',
@@ -1479,8 +1460,8 @@ function createStyles(colors: ThemeColors) {
       fontWeight: '900',
     },
     liveRateSubtitle: {
-      marginTop: 5,
-      lineHeight: 18,
+      marginTop: 0,
+      lineHeight: 0,
     },
     liveRateBadge: {
       minHeight: 34,
@@ -1504,9 +1485,9 @@ function createStyles(colors: ThemeColors) {
       minWidth: 0,
       backgroundColor: colors.surfaceSoft,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       borderRadius: 18,
-      padding: 13,
+      padding: 12,
     },
     liveRateValue: {
       marginTop: 6,
@@ -1514,39 +1495,39 @@ function createStyles(colors: ThemeColors) {
     },
     liveRateFooter: {
       borderTopWidth: 1,
-      borderTopColor: colors.border,
-      paddingTop: 12,
+      borderTopColor: colors.borderSoft,
+      paddingTop: 10,
       gap: 4,
     },
     liveRateFooterText: {
       lineHeight: 17,
     },
     quickActionsScroll: {
-      marginTop: 18,
+      marginTop: 14,
       marginHorizontal: -2,
     },
     quickActionsContent: {
       paddingHorizontal: 2,
       paddingRight: 18,
-      gap: 10,
+      gap: 9,
     },
     quickActionCard: {
-      width: 104,
-      minHeight: 82,
+      width: 86,
+      minHeight: 74,
       borderRadius: 20,
       backgroundColor: colors.surface,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       alignItems: 'center',
       justifyContent: 'center',
-      gap: 9,
-      paddingHorizontal: 10,
+      gap: 8,
+      paddingHorizontal: 8,
     },
     quickActionIcon: {
-      width: 42,
-      height: 42,
+      width: 38,
+      height: 38,
       borderRadius: 15,
-      backgroundColor: colors.surfaceSoft,
+      backgroundColor: colors.primarySoft,
       alignItems: 'center',
       justifyContent: 'center',
     },
@@ -1554,13 +1535,13 @@ function createStyles(colors: ThemeColors) {
       fontWeight: '800',
     },
     netWorthHistoryCard: {
-      marginTop: 18,
+      marginTop: 14,
       backgroundColor: colors.surface,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       borderRadius: 24,
-      padding: 16,
-      gap: 14,
+      padding: 14,
+      gap: 12,
     },
     netWorthHistoryHeader: {
       flexDirection: 'row',
@@ -1600,6 +1581,8 @@ function createStyles(colors: ThemeColors) {
       borderRadius: 22,
       backgroundColor: colors.surfaceSoft,
       overflow: 'hidden',
+      borderWidth: 1,
+      borderColor: colors.borderSoft,
     },
     dashboardLineGuide: {
       position: 'absolute',
@@ -1622,6 +1605,10 @@ function createStyles(colors: ThemeColors) {
       height: 3,
       borderRadius: 999,
       backgroundColor: colors.primary,
+      shadowColor: colors.primary,
+      shadowOpacity: 0.4,
+      shadowRadius: 5,
+      shadowOffset: { width: 0, height: 0 },
     },
     dashboardChartTouchLayer: {
       position: 'absolute',

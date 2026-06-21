@@ -7,6 +7,7 @@ import { NumericAmountInput } from '../src/components/ui/NumericAmountInput';
 import { Screen } from '../src/components/ui/Screen';
 import { ThemeColors } from '../src/constants/colors';
 import { useThemeColors } from '../src/hooks/useThemeColors';
+import { useAppToast } from '../src/components/ui/AppToast';
 import { useFinanceStore } from '../src/stores/useFinanceStore';
 import { Currency, InvestmentAssetType } from '../src/types/finance';
 
@@ -46,6 +47,7 @@ function formatInputNumber(value: number) {
 export default function EditInvestmentHoldingScreen() {
   const colors = useThemeColors();
   const styles = createStyles(colors);
+  const toast = useAppToast();
   const params = useLocalSearchParams<{ holdingId?: string }>();
 
   const accounts = useFinanceStore((state) => state.accounts);
@@ -100,12 +102,12 @@ export default function EditInvestmentHoldingScreen() {
 
   function handleSubmit() {
     if (!holding) {
-      Alert.alert('Finance OS Mobile', 'Investment holding not found.');
+      toast.showWarning('Holding Missing', 'Investment holding not found.');
       return;
     }
 
     if (!selectedAccount) {
-      Alert.alert('Finance OS Mobile', 'Choose broker or crypto wallet account first.');
+      toast.showWarning('Account Needed', 'Choose broker or crypto wallet account first.');
       return;
     }
 
@@ -122,11 +124,13 @@ export default function EditInvestmentHoldingScreen() {
       note,
     });
 
-    Alert.alert('Finance OS Mobile', result.message);
-
-    if (result.success) {
-      router.back();
+    if (!result.success) {
+      toast.showError('Could Not Update Holding', result.message);
+      return;
     }
+
+    toast.showSuccess('Holding Updated', result.message);
+    router.back();
   }
 
   if (!holding) {
@@ -192,6 +196,22 @@ export default function EditInvestmentHoldingScreen() {
       ) : null}
 
       <View style={styles.formCard}>
+        <View style={styles.sectionMiniHeader}>
+          <View>
+            <AppText variant="caption" muted>
+              Step 1
+            </AppText>
+
+            <AppText variant="subtitle" style={styles.sectionMiniTitle}>
+              Account routing
+            </AppText>
+          </View>
+
+          <AppText variant="caption" muted style={styles.sectionMiniHint}>
+            Broker / Wallet
+          </AppText>
+        </View>
+
         <View style={styles.section}>
           <AppText variant="caption" muted style={styles.label}>
             Investment Account
@@ -245,6 +265,22 @@ export default function EditInvestmentHoldingScreen() {
               );
             })}
           </View>
+        </View>
+
+        <View style={styles.sectionMiniHeader}>
+          <View>
+            <AppText variant="caption" muted>
+              Step 2
+            </AppText>
+
+            <AppText variant="subtitle" style={styles.sectionMiniTitle}>
+              Asset identity
+            </AppText>
+          </View>
+
+          <AppText variant="caption" muted style={styles.sectionMiniHint}>
+            Type & symbol
+          </AppText>
         </View>
 
         <View style={styles.section}>
@@ -353,6 +389,22 @@ export default function EditInvestmentHoldingScreen() {
           />
         </View>
 
+        <View style={styles.sectionMiniHeader}>
+          <View>
+            <AppText variant="caption" muted>
+              Step 3
+            </AppText>
+
+            <AppText variant="subtitle" style={styles.sectionMiniTitle}>
+              Quantity & price
+            </AppText>
+          </View>
+
+          <AppText variant="caption" muted style={styles.sectionMiniHint}>
+            Valuation
+          </AppText>
+        </View>
+
         <NumericAmountInput
           label="Quantity"
           value={quantity}
@@ -385,6 +437,22 @@ export default function EditInvestmentHoldingScreen() {
           helperText="If changed, today's price history point will be updated."
         />
 
+        <View style={styles.sectionMiniHeader}>
+          <View>
+            <AppText variant="caption" muted>
+              Step 4
+            </AppText>
+
+            <AppText variant="subtitle" style={styles.sectionMiniTitle}>
+              Note & save
+            </AppText>
+          </View>
+
+          <AppText variant="caption" muted style={styles.sectionMiniHint}>
+            Final
+          </AppText>
+        </View>
+
         <View style={styles.field}>
           <AppText variant="caption" muted style={styles.label}>
             Note
@@ -401,6 +469,8 @@ export default function EditInvestmentHoldingScreen() {
         </View>
 
         <Pressable onPress={handleSubmit} style={styles.submitButton}>
+          <Ionicons name="checkmark-circle-outline" size={19} color={colors.black} />
+
           <AppText variant="body" style={styles.submitButtonText}>
             Save Changes
           </AppText>
@@ -468,6 +538,21 @@ function createStyles(colors: ThemeColors) {
       borderColor: colors.border,
       borderRadius: 28,
       padding: 16,
+    },
+    sectionMiniHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'flex-end',
+      gap: 12,
+      marginTop: 4,
+      marginBottom: 12,
+    },
+    sectionMiniTitle: {
+      marginTop: 3,
+      color: colors.text,
+    },
+    sectionMiniHint: {
+      fontWeight: '900',
     },
     section: {
       marginBottom: 18,
@@ -548,6 +633,8 @@ function createStyles(colors: ThemeColors) {
       backgroundColor: colors.primary,
       alignItems: 'center',
       justifyContent: 'center',
+      flexDirection: 'row',
+      gap: 8,
       paddingHorizontal: 18,
       marginTop: 6,
     },

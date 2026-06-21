@@ -2,6 +2,7 @@ import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 import { AppState } from 'react-native';
+import { AppToastProvider } from '../src/components/ui/AppToast';
 import { EMBEDDED_EXCHANGE_RATE_CONFIG } from '../src/config/exchangeRateConfig';
 import { useThemeColors, useResolvedThemeMode } from '../src/hooks/useThemeColors';
 import { runInvestmentPriceSyncOnAppOpen } from '../src/services/investmentAppOpenPriceSync';
@@ -61,7 +62,7 @@ export default function RootLayout() {
   }, [refreshExchangeRatesIfStale, refreshExchangeRatesOnAppOpen]);
 
   return (
-    <>
+    <AppToastProvider>
       <StatusBar style={resolvedThemeMode === 'light' ? 'dark' : 'light'} />
 
       <Stack
@@ -72,6 +73,6 @@ export default function RootLayout() {
           },
         }}
       />
-    </>
+    </AppToastProvider>
   );
 }

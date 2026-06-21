@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { Alert, Pressable, StyleSheet, View } from 'react-native';
+import { AnimatedPressable } from '../src/components/ui/AnimatedPressable';
 import { AppText } from '../src/components/ui/AppText';
 import { Screen } from '../src/components/ui/Screen';
 import { StatCard } from '../src/components/ui/StatCard';
@@ -550,7 +551,7 @@ export default function InvestmentsScreen() {
 
           <View style={styles.headerText}>
             <AppText variant="caption" muted>
-              Portfolio tracking
+              Portfolio
             </AppText>
 
             <AppText variant="title" style={styles.title} numberOfLines={1}>
@@ -619,16 +620,14 @@ export default function InvestmentsScreen() {
 
           <View style={styles.heroTextBox}>
             <AppText variant="caption" style={styles.heroLabel}>
-              Portfolio Value • {defaultCurrency} base
+              Portfolio Value
             </AppText>
 
             <AppText variant="title" style={styles.heroValue} numberOfLines={1}>
               {formatCompactCurrency(summary.totalValue, defaultCurrency)}
             </AppText>
 
-            <AppText variant="caption" style={styles.heroFullValue} numberOfLines={1}>
-              {formatCurrency(summary.totalValue, defaultCurrency)}
-            </AppText>
+
           </View>
         </View>
 
@@ -658,7 +657,7 @@ export default function InvestmentsScreen() {
           </AppText>
 
           <AppText variant="subtitle" style={styles.entryTitle}>
-            Choose how to add assets
+            Add assets
           </AppText>
         </View>
 
@@ -681,13 +680,13 @@ export default function InvestmentsScreen() {
             <Ionicons name="archive-outline" size={17} color={colors.text} />
 
             <AppText variant="caption" style={styles.entrySecondaryText}>
-              Add Manual Holding
+              Manual
             </AppText>
           </Pressable>
         </View>
 
         <AppText variant="caption" muted style={styles.entryDescription}>
-          Buy Asset records a new buy transaction. Add Manual Holding is for assets you already owned before using this app.
+          Buy new assets or add existing holdings manually.
         </AppText>
       </View>
 
@@ -702,18 +701,18 @@ export default function InvestmentsScreen() {
 
         <View style={styles.priceSyncTextBox}>
           <AppText variant="caption" muted>
-            App-Open Price Sync
+            Price Sync
           </AppText>
 
           <AppText variant="body" style={styles.priceSyncTitle}>
-            {isSyncingPrices ? 'Syncing prices...' : 'Auto update runs when app opens'}
+            {isSyncingPrices ? 'Syncing prices...' : 'Auto update on app open'}
           </AppText>
 
           <AppText variant="caption" muted style={styles.priceSyncDescription} numberOfLines={2}>
             {lastPriceSyncSummary}
           </AppText>
 
-          <Pressable
+          <AnimatedPressable
             onPress={() => router.push('/investment-price-sync-history')}
             style={styles.priceSyncHistoryButton}
           >
@@ -722,10 +721,10 @@ export default function InvestmentsScreen() {
             <AppText variant="caption" style={styles.priceSyncHistoryButtonText}>
               Sync History
             </AppText>
-          </Pressable>
+          </AnimatedPressable>
         </View>
 
-        <Pressable
+        <AnimatedPressable
           onPress={handleSyncPrices}
           disabled={isSyncingPrices}
           style={[styles.priceSyncButton, isSyncingPrices && styles.disabledButton]}
@@ -735,7 +734,7 @@ export default function InvestmentsScreen() {
             size={17}
             color={colors.black}
           />
-        </Pressable>
+        </AnimatedPressable>
       </View>
 
       <View style={styles.grid}>
@@ -760,7 +759,7 @@ export default function InvestmentsScreen() {
           )}`}
           tone={realizedPnlIsPositive ? 'income' : 'expense'}
         />
-        <StatCard label="Sell Orders" value={`${summary.sellOrderCount}`} tone="saving" />
+        <StatCard label="Sells" value={`${summary.sellOrderCount}`} tone="saving" />
         <StatCard label="Holdings" value={`${summary.holdingCount}`} tone="investment" />
         <StatCard label="Accounts" value={`${summary.accountCount}`} />
       </View>
@@ -795,7 +794,7 @@ export default function InvestmentsScreen() {
             <View style={[styles.performanceLegendDot, { backgroundColor: colors.investment }]} />
 
             <AppText variant="caption" muted>
-              Realized P/L
+              Realized
             </AppText>
           </View>
         </View>
@@ -1205,7 +1204,7 @@ export default function InvestmentsScreen() {
                 </View>
 
                 <View style={styles.actionPanel}>
-                  <Pressable
+                  <AnimatedPressable
                     onPress={() =>
                       router.push(`/investment-holding-detail?holdingId=${holding.id}`)
                     }
@@ -1216,7 +1215,7 @@ export default function InvestmentsScreen() {
                     <AppText variant="caption" style={styles.detailButtonText}>
                       Details
                     </AppText>
-                  </Pressable>
+                  </AnimatedPressable>
 
                   <View style={styles.actionPairRow}>
                     <Pressable
@@ -1256,7 +1255,7 @@ export default function InvestmentsScreen() {
                       <Ionicons name="create-outline" size={17} color={colors.black} />
 
                       <AppText variant="caption" style={styles.updateButtonText}>
-                        Update Price
+                        Price
                       </AppText>
                     </Pressable>
 
@@ -1284,8 +1283,8 @@ export default function InvestmentsScreen() {
 function createStyles(colors: ThemeColors) {
   return StyleSheet.create({
     header: {
-      marginBottom: 22,
-      gap: 14,
+      marginBottom: 18,
+      gap: 12,
     },
     headerTopRow: {
       flexDirection: 'row',
@@ -1298,7 +1297,7 @@ function createStyles(colors: ThemeColors) {
       borderRadius: 16,
       backgroundColor: colors.surface,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       alignItems: 'center',
       justifyContent: 'center',
     },
@@ -1313,16 +1312,16 @@ function createStyles(colors: ThemeColors) {
     headerActionRow: {
       flexDirection: 'row',
       flexWrap: 'wrap',
-      gap: 9,
+      gap: 8,
     },
     headerActionPill: {
-      minHeight: 42,
+      minHeight: 40,
       minWidth: '47%',
       flex: 1,
       borderRadius: 16,
       backgroundColor: colors.surface,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       paddingHorizontal: 12,
       flexDirection: 'row',
       alignItems: 'center',
@@ -1350,9 +1349,16 @@ function createStyles(colors: ThemeColors) {
       fontWeight: '900',
     },
     heroCard: {
-      backgroundColor: colors.primary,
+      backgroundColor: colors.surfaceRaised,
+      borderWidth: 1,
+      borderColor: colors.borderSoft,
       borderRadius: 30,
       padding: 20,
+      shadowColor: colors.shadow,
+      shadowOpacity: 0.14,
+      shadowRadius: 14,
+      shadowOffset: { width: 0, height: 8 },
+      elevation: 2,
     },
     heroTop: {
       flexDirection: 'row',
@@ -1360,10 +1366,10 @@ function createStyles(colors: ThemeColors) {
       alignItems: 'center',
     },
     heroIcon: {
-      width: 56,
-      height: 56,
+      width: 54,
+      height: 54,
       borderRadius: 20,
-      backgroundColor: 'rgba(0,0,0,0.08)',
+      backgroundColor: colors.investmentSoft,
       alignItems: 'center',
       justifyContent: 'center',
     },
@@ -1372,12 +1378,13 @@ function createStyles(colors: ThemeColors) {
       minWidth: 0,
     },
     heroLabel: {
-      color: 'rgba(0,0,0,0.62)',
+      color: colors.textMuted,
       fontWeight: '900',
     },
     heroValue: {
-      marginTop: 5,
-      color: colors.black,
+      marginTop: 6,
+      color: colors.text,
+      letterSpacing: -0.8,
     },
     heroFullValue: {
       marginTop: 3,
@@ -1385,13 +1392,15 @@ function createStyles(colors: ThemeColors) {
       fontWeight: '800',
     },
     pnlBox: {
-      marginTop: 18,
-      backgroundColor: 'rgba(0,0,0,0.08)',
+      marginTop: 16,
+      backgroundColor: colors.surfaceSoft,
+      borderWidth: 1,
+      borderColor: colors.borderSoft,
       borderRadius: 20,
-      padding: 14,
+      padding: 13,
     },
     pnlLabel: {
-      color: 'rgba(0,0,0,0.62)',
+      color: colors.textMuted,
       fontWeight: '900',
     },
     pnlValue: {
@@ -1399,13 +1408,13 @@ function createStyles(colors: ThemeColors) {
       fontWeight: '900',
     },
     investmentEntryCard: {
-      marginTop: 16,
+      marginTop: 14,
       backgroundColor: colors.surface,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       borderRadius: 24,
-      padding: 15,
-      gap: 13,
+      padding: 14,
+      gap: 11,
     },
     entryTitle: {
       marginTop: 4,
@@ -1436,7 +1445,7 @@ function createStyles(colors: ThemeColors) {
       borderRadius: 16,
       backgroundColor: colors.surfaceSoft,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',
@@ -1448,7 +1457,7 @@ function createStyles(colors: ThemeColors) {
       fontWeight: '900',
     },
     entryDescription: {
-      lineHeight: 18,
+      lineHeight: 16,
     },
     disabledButton: {
       opacity: 0.56,
@@ -1457,7 +1466,7 @@ function createStyles(colors: ThemeColors) {
       marginTop: 16,
       backgroundColor: colors.surface,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       borderRadius: 22,
       padding: 14,
       flexDirection: 'row',
@@ -1470,7 +1479,7 @@ function createStyles(colors: ThemeColors) {
       borderRadius: 15,
       backgroundColor: colors.surfaceSoft,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       alignItems: 'center',
       justifyContent: 'center',
     },
@@ -1494,7 +1503,7 @@ function createStyles(colors: ThemeColors) {
       borderRadius: 12,
       backgroundColor: colors.surfaceSoft,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       paddingHorizontal: 10,
       flexDirection: 'row',
       alignItems: 'center',
@@ -1513,14 +1522,14 @@ function createStyles(colors: ThemeColors) {
       justifyContent: 'center',
     },
     grid: {
-      marginTop: 18,
+      marginTop: 14,
       flexDirection: 'row',
       flexWrap: 'wrap',
-      gap: 12,
+      gap: 10,
     },
     sectionHeader: {
-      marginTop: 28,
-      marginBottom: 14,
+      marginTop: 22,
+      marginBottom: 10,
       flexDirection: 'row',
       alignItems: 'flex-end',
       justifyContent: 'space-between',
@@ -1529,7 +1538,7 @@ function createStyles(colors: ThemeColors) {
     emptyCard: {
       backgroundColor: colors.surface,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       borderRadius: 26,
       padding: 22,
       alignItems: 'center',
@@ -1540,7 +1549,7 @@ function createStyles(colors: ThemeColors) {
       borderRadius: 21,
       backgroundColor: colors.surfaceSoft,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       alignItems: 'center',
       justifyContent: 'center',
     },
@@ -1571,7 +1580,7 @@ function createStyles(colors: ThemeColors) {
       borderRadius: 17,
       backgroundColor: colors.surface,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       alignItems: 'center',
       justifyContent: 'center',
       paddingHorizontal: 16,
@@ -1584,10 +1593,10 @@ function createStyles(colors: ThemeColors) {
     performanceCard: {
       backgroundColor: colors.surface,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       borderRadius: 24,
-      padding: 15,
-      marginBottom: 4,
+      padding: 14,
+      marginBottom: 2,
     },
     performanceLegendRow: {
       flexDirection: 'row',
@@ -1650,7 +1659,7 @@ function createStyles(colors: ThemeColors) {
     allocationEmptyCard: {
       backgroundColor: colors.surface,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       borderRadius: 22,
       padding: 16,
       flexDirection: 'row',
@@ -1665,7 +1674,7 @@ function createStyles(colors: ThemeColors) {
     allocationCard: {
       backgroundColor: colors.surface,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       borderRadius: 24,
       padding: 15,
       gap: 14,
@@ -1711,7 +1720,7 @@ function createStyles(colors: ThemeColors) {
     controlCard: {
       backgroundColor: colors.surface,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       borderRadius: 22,
       padding: 14,
       gap: 14,
@@ -1733,7 +1742,7 @@ function createStyles(colors: ThemeColors) {
       borderRadius: 999,
       backgroundColor: colors.surfaceSoft,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       paddingHorizontal: 12,
       flexDirection: 'row',
       alignItems: 'center',
@@ -1755,7 +1764,7 @@ function createStyles(colors: ThemeColors) {
       borderRadius: 999,
       backgroundColor: colors.surfaceSoft,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       paddingHorizontal: 12,
       flexDirection: 'row',
       alignItems: 'center',
@@ -1773,15 +1782,15 @@ function createStyles(colors: ThemeColors) {
       color: colors.black,
     },
     holdingList: {
-      gap: 12,
+      gap: 10,
     },
     holdingCard: {
       backgroundColor: colors.surface,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       borderRadius: 24,
-      padding: 15,
-      gap: 14,
+      padding: 14,
+      gap: 12,
     },
     holdingHeader: {
       flexDirection: 'row',
@@ -1794,7 +1803,7 @@ function createStyles(colors: ThemeColors) {
       borderRadius: 16,
       backgroundColor: colors.surfaceSoft,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       alignItems: 'center',
       justifyContent: 'center',
     },
@@ -1854,7 +1863,7 @@ function createStyles(colors: ThemeColors) {
       borderRadius: 16,
       backgroundColor: colors.surfaceSoft,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       alignItems: 'center',
       justifyContent: 'center',
       flexDirection: 'row',
@@ -1871,7 +1880,7 @@ function createStyles(colors: ThemeColors) {
       borderRadius: 16,
       backgroundColor: colors.surfaceSoft,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       alignItems: 'center',
       justifyContent: 'center',
       flexDirection: 'row',
@@ -1888,7 +1897,7 @@ function createStyles(colors: ThemeColors) {
       borderRadius: 16,
       backgroundColor: colors.surfaceSoft,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       alignItems: 'center',
       justifyContent: 'center',
       flexDirection: 'row',
@@ -1920,7 +1929,7 @@ function createStyles(colors: ThemeColors) {
       borderRadius: 16,
       backgroundColor: colors.surfaceSoft,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       alignItems: 'center',
       justifyContent: 'center',
       flexDirection: 'row',

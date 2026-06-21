@@ -7,6 +7,7 @@ import { NumericAmountInput } from '../src/components/ui/NumericAmountInput';
 import { Screen } from '../src/components/ui/Screen';
 import { ThemeColors } from '../src/constants/colors';
 import { useThemeColors } from '../src/hooks/useThemeColors';
+import { useAppToast } from '../src/components/ui/AppToast';
 import { fetchInvestmentPriceForHolding, isPriceSyncSupportedHolding } from '../src/services/investmentPriceSync';
 import { useFinanceStore } from '../src/stores/useFinanceStore';
 import { Currency, InvestmentHolding, InvestmentOrderType } from '../src/types/finance';
@@ -48,6 +49,7 @@ function formatQuantityInput(value: number) {
 export default function AddInvestmentOrderScreen() {
   const colors = useThemeColors();
   const styles = createStyles(colors);
+  const toast = useAppToast();
   const params = useLocalSearchParams<{ holdingId?: string; type?: InvestmentOrderType }>();
 
   const accounts = useFinanceStore((state) => state.accounts);
@@ -266,7 +268,7 @@ export default function AddInvestmentOrderScreen() {
 
   function handleSubmit() {
     if (!holding) {
-      Alert.alert('Finance OS Mobile', 'Investment holding not found.');
+      toast.showWarning('Holding Missing', 'Investment holding not found.');
       return;
     }
 
@@ -288,11 +290,13 @@ export default function AddInvestmentOrderScreen() {
       note,
     });
 
-    Alert.alert('Finance OS Mobile', result.message);
-
-    if (result.success) {
-      router.back();
+    if (!result.success) {
+      toast.showError('Could Not Save Order', result.message);
+      return;
     }
+
+    toast.showSuccess(orderType === 'buy' ? 'Buy Order Saved' : 'Sell Order Saved', result.message);
+    router.back();
   }
 
   if (!holding || !account) {

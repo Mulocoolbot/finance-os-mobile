@@ -333,6 +333,22 @@ export default function AddCryptoIncomeScreen() {
         </View>
       </View>
 
+      <View style={styles.sectionMiniHeader}>
+        <View>
+          <AppText variant="caption" muted>
+            Step 1
+          </AppText>
+
+          <AppText variant="subtitle" style={styles.sectionMiniTitle}>
+            Crypto source
+          </AppText>
+        </View>
+
+        <AppText variant="caption" muted style={styles.sectionMiniHint}>
+          Existing / New
+        </AppText>
+      </View>
+
       <View style={styles.card}>
         <AppText variant="caption" muted style={styles.label}>Add to Existing Holding</AppText>
 
@@ -475,6 +491,22 @@ export default function AddCryptoIncomeScreen() {
         </View>
       </View>
 
+      <View style={styles.sectionMiniHeader}>
+        <View>
+          <AppText variant="caption" muted>
+            Step 2
+          </AppText>
+
+          <AppText variant="subtitle" style={styles.sectionMiniTitle}>
+            Transaction detail
+          </AppText>
+        </View>
+
+        <AppText variant="caption" muted style={styles.sectionMiniHint}>
+          Title & category
+        </AppText>
+      </View>
+
       <View style={styles.card}>
         <View style={styles.fieldInner}>
           <AppText variant="caption" muted style={styles.label}>Transaction Title</AppText>
@@ -497,6 +529,22 @@ export default function AddCryptoIncomeScreen() {
             colors={colors}
           />
         </View>
+      </View>
+
+      <View style={styles.sectionMiniHeader}>
+        <View>
+          <AppText variant="caption" muted>
+            Step 3
+          </AppText>
+
+          <AppText variant="subtitle" style={styles.sectionMiniTitle}>
+            Asset, quantity & rate
+          </AppText>
+        </View>
+
+        <AppText variant="caption" muted style={styles.sectionMiniHint}>
+          Value input
+        </AppText>
       </View>
 
       <View style={styles.card}>
@@ -587,10 +635,39 @@ export default function AddCryptoIncomeScreen() {
         />
       </View>
 
+      <View style={styles.sectionMiniHeader}>
+        <View>
+          <AppText variant="caption" muted>
+            Step 4
+          </AppText>
+
+          <AppText variant="subtitle" style={styles.sectionMiniTitle}>
+            Preview & save
+          </AppText>
+        </View>
+
+        <AppText variant="caption" muted style={styles.sectionMiniHint}>
+          Check value
+        </AppText>
+      </View>
+
       <View style={styles.previewCard}>
-        <AppText variant="caption" muted>Estimated Value</AppText>
-        <AppText variant="title" style={styles.previewValue} numberOfLines={1}>
-          {formatCurrency(estimatedValue, rateCurrency)}
+        <View style={styles.previewHeader}>
+          <View>
+            <AppText variant="caption" muted>Estimated Value</AppText>
+
+            <AppText variant="title" style={styles.previewValue} numberOfLines={1}>
+              {formatCurrency(estimatedValue, rateCurrency)}
+            </AppText>
+          </View>
+
+          <View style={styles.previewIcon}>
+            <Ionicons name="arrow-down-circle-outline" size={22} color={colors.black} />
+          </View>
+        </View>
+
+        <AppText variant="caption" style={styles.previewDescription} numberOfLines={1}>
+          {quantity || '0'} {symbol.trim().toUpperCase() || 'CRYPTO'} · {rateCurrency}
         </AppText>
       </View>
 
@@ -600,6 +677,8 @@ export default function AddCryptoIncomeScreen() {
       </View>
 
       <Pressable onPress={handleSubmit} style={styles.submitButton}>
+        <Ionicons name="checkmark-circle-outline" size={19} color={colors.black} />
+
         <AppText variant="body" style={styles.submitText}>Save Crypto Income</AppText>
       </Pressable>
     </Screen>
@@ -681,6 +760,9 @@ function createStyles(colors: ThemeColors) {
     backButton: { width: 44, height: 44, borderRadius: 16, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' },
     headerText: { flex: 1, minWidth: 0 },
     card: { marginBottom: 16, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: 24, padding: 14, gap: 12 },
+    sectionMiniHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', gap: 12, marginTop: 4, marginBottom: 10 },
+    sectionMiniTitle: { marginTop: 3, color: colors.text },
+    sectionMiniHint: { fontWeight: '900' },
     label: { fontWeight: '900' },
     optionGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 9 },
     optionChip: { minHeight: 42, maxWidth: '48%', borderRadius: 15, backgroundColor: colors.surfaceSoft, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 11, flexDirection: 'row', alignItems: 'center', gap: 7 },
@@ -729,10 +811,13 @@ function createStyles(colors: ThemeColors) {
     rateStatusTextBox: { flex: 1, minWidth: 0 },
     rateStatusTitle: { marginTop: 2, color: colors.text, fontWeight: '900' },
     rateStatusText: { marginTop: 4, lineHeight: 18 },
-    previewCard: { marginBottom: 16, backgroundColor: colors.primary, borderRadius: 24, padding: 18 },
+    previewCard: { marginBottom: 16, backgroundColor: colors.primary, borderRadius: 24, padding: 18, gap: 8 },
+    previewHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+    previewIcon: { width: 42, height: 42, borderRadius: 16, backgroundColor: 'rgba(0,0,0,0.08)', alignItems: 'center', justifyContent: 'center' },
     previewValue: { marginTop: 6, color: colors.black },
+    previewDescription: { color: 'rgba(0,0,0,0.62)', fontWeight: '900' },
     field: { marginBottom: 18, gap: 9 },
-    submitButton: { minHeight: 56, borderRadius: 18, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 18 },
+    submitButton: { minHeight: 56, borderRadius: 18, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8, paddingHorizontal: 18 },
     submitText: { color: colors.black, fontWeight: '900' },
   });
 }

@@ -2,10 +2,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { Alert, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { AnimatedPressable } from '../src/components/ui/AnimatedPressable';
 import { AppText } from '../src/components/ui/AppText';
 import { Screen } from '../src/components/ui/Screen';
 import { ThemeColors } from '../src/constants/colors';
 import { useThemeColors } from '../src/hooks/useThemeColors';
+import { useAppToast } from '../src/components/ui/AppToast';
 import { useFinanceStore } from '../src/stores/useFinanceStore';
 import { formatCurrency } from '../src/utils/currency';
 
@@ -78,6 +80,7 @@ function normalizeTimeForSave(value: string) {
 export default function TradingPlanScreen() {
   const colors = useThemeColors();
   const styles = createStyles(colors);
+  const toast = useAppToast();
   const params = useLocalSearchParams<{ tradingAccountId?: string }>();
 
   const tradingAccounts = useFinanceStore((state) => state.tradingAccounts);
@@ -226,11 +229,13 @@ export default function TradingPlanScreen() {
       mentalChecklist: parseList(mentalChecklist),
     });
 
-    Alert.alert('Finance OS Mobile', result.message);
-
-    if (result.success) {
-      router.back();
+    if (!result.success) {
+      toast.showError('Could Not Save Plan', result.message);
+      return;
     }
+
+    toast.showSuccess('Plan Saved', result.message);
+    router.back();
   }
 
   function handleDelete() {
@@ -293,14 +298,14 @@ export default function TradingPlanScreen() {
           </AppText>
 
           <AppText variant="caption" muted style={styles.infoDescription}>
-            Max loss and profit target amounts are calculated automatically from real account balance.
+            Amounts auto-calculate from real account balance.
           </AppText>
         </View>
       </View>
 
       <View style={styles.balanceCard}>
         <AppText variant="caption" muted>
-          Calculation Balance
+          Balance
         </AppText>
 
         <AppText variant="title" style={styles.balanceValue}>
@@ -309,7 +314,7 @@ export default function TradingPlanScreen() {
 
         {tradingAccount.accountType === 'cent' ? (
           <AppText variant="caption" muted style={styles.balanceNote}>
-            Cent account uses raw balance ÷ 100 as real USD balance.
+            Cent account = raw balance ÷ 100.
           </AppText>
         ) : null}
       </View>
@@ -317,7 +322,7 @@ export default function TradingPlanScreen() {
       <View style={styles.previewCard}>
         <View style={styles.previewMetric}>
           <AppText variant="caption" muted>
-            Effective Daily Max Loss
+            Max Loss
           </AppText>
 
           <AppText variant="body" style={styles.previewValue}>
@@ -327,7 +332,7 @@ export default function TradingPlanScreen() {
 
         <View style={styles.previewMetric}>
           <AppText variant="caption" muted>
-            Daily Profit Target
+            Target
           </AppText>
 
           <AppText variant="body" style={styles.previewValue}>
@@ -337,7 +342,7 @@ export default function TradingPlanScreen() {
 
         <View style={styles.previewMetric}>
           <AppText variant="caption" muted>
-            Risk / Trade Preview
+            Risk / Trade
           </AppText>
 
           <AppText variant="body" style={styles.previewValue}>
@@ -347,6 +352,22 @@ export default function TradingPlanScreen() {
       </View>
 
       <View style={styles.formCard}>
+        <View style={styles.sectionMiniHeader}>
+          <View>
+            <AppText variant="caption" muted>
+              Step 1
+            </AppText>
+
+            <AppText variant="subtitle" style={styles.sectionMiniTitle}>
+              Daily risk guardrails
+            </AppText>
+          </View>
+
+          <AppText variant="caption" muted style={styles.sectionMiniHint}>
+            Loss & target
+          </AppText>
+        </View>
+
         <TextField
           label="Daily Max Loss"
           value={dailyMaxLossPercent}
@@ -362,13 +383,13 @@ export default function TradingPlanScreen() {
         />
 
         <ReadOnlyAmountField
-          label="Daily Max Loss Amount"
+          label="Max Loss Amount"
           value={formatCurrency(calculatedDailyLossAmount, tradingAccount.currency)}
           colors={colors}
         />
 
         <TextField
-          label="Daily Profit Target"
+          label="Target"
           value={dailyProfitTargetPercent}
           onChangeText={setDailyProfitTargetPercent}
           placeholder="5"
@@ -382,10 +403,26 @@ export default function TradingPlanScreen() {
         />
 
         <ReadOnlyAmountField
-          label="Daily Profit Target Amount"
+          label="Target Amount"
           value={formatCurrency(calculatedDailyProfitTargetAmount, tradingAccount.currency)}
           colors={colors}
         />
+
+        <View style={styles.sectionMiniHeader}>
+          <View>
+            <AppText variant="caption" muted>
+              Step 2
+            </AppText>
+
+            <AppText variant="subtitle" style={styles.sectionMiniTitle}>
+              Execution rules
+            </AppText>
+          </View>
+
+          <AppText variant="caption" muted style={styles.sectionMiniHint}>
+            Trade limit
+          </AppText>
+        </View>
 
         <TextField
           label="Max Trades Per Day"
@@ -407,7 +444,7 @@ export default function TradingPlanScreen() {
         />
 
         <TextField
-          label="Minimum Reward Risk Ratio"
+          label="Minimum RR"
           value={minimumRewardRiskRatio}
           onChangeText={setMinimumRewardRiskRatio}
           placeholder="2"
@@ -415,6 +452,22 @@ export default function TradingPlanScreen() {
           prefix="1:"
           colors={colors}
         />
+
+        <View style={styles.sectionMiniHeader}>
+          <View>
+            <AppText variant="caption" muted>
+              Step 3
+            </AppText>
+
+            <AppText variant="subtitle" style={styles.sectionMiniTitle}>
+              Market & session
+            </AppText>
+          </View>
+
+          <AppText variant="caption" muted style={styles.sectionMiniHint}>
+            Pair & time
+          </AppText>
+        </View>
 
         <TextField
           label="Allowed Pairs"
@@ -453,7 +506,23 @@ export default function TradingPlanScreen() {
           </View>
 
           <AppText variant="caption" muted style={styles.helperText}>
-            Type numbers only. Example: 1800 becomes 18:00.
+            Example: 1800 → 18:00.
+          </AppText>
+        </View>
+
+        <View style={styles.sectionMiniHeader}>
+          <View>
+            <AppText variant="caption" muted>
+              Step 4
+            </AppText>
+
+            <AppText variant="subtitle" style={styles.sectionMiniTitle}>
+              Rules & mental checklist
+            </AppText>
+          </View>
+
+          <AppText variant="caption" muted style={styles.sectionMiniHint}>
+            Discipline
           </AppText>
         </View>
 
@@ -476,22 +545,22 @@ export default function TradingPlanScreen() {
         />
       </View>
 
-      <Pressable onPress={handleSave} style={styles.saveButton}>
-        <Ionicons name="save-outline" size={18} color={colors.black} />
+      <AnimatedPressable containerStyle={styles.fullWidthMotion} onPress={handleSave} style={styles.saveButton}>
+        <Ionicons name="checkmark-circle-outline" size={19} color={colors.black} />
 
         <AppText variant="body" style={styles.saveButtonText}>
-          Save Trading Plan
+          Save Plan
         </AppText>
-      </Pressable>
+      </AnimatedPressable>
 
       {existingPlan ? (
-        <Pressable onPress={handleDelete} style={styles.deleteButton}>
+        <AnimatedPressable containerStyle={styles.fullWidthMotion} onPress={handleDelete} style={styles.deleteButton}>
           <Ionicons name="trash-outline" size={18} color={colors.white} />
 
           <AppText variant="body" style={styles.deleteButtonText}>
-            Delete Trading Plan
+            Delete Plan
           </AppText>
-        </Pressable>
+        </AnimatedPressable>
       ) : null}
     </Screen>
   );
@@ -625,7 +694,7 @@ function TextField({
 function createStyles(colors: ThemeColors) {
   return StyleSheet.create({
     header: {
-      marginBottom: 22,
+      marginBottom: 18,
       flexDirection: 'row',
       alignItems: 'center',
       gap: 14,
@@ -636,7 +705,7 @@ function createStyles(colors: ThemeColors) {
       borderRadius: 16,
       backgroundColor: colors.surface,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       alignItems: 'center',
       justifyContent: 'center',
     },
@@ -645,14 +714,19 @@ function createStyles(colors: ThemeColors) {
       minWidth: 0,
     },
     infoCard: {
-      backgroundColor: colors.surface,
+      backgroundColor: colors.surfaceRaised,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       borderRadius: 24,
       padding: 14,
       flexDirection: 'row',
       gap: 12,
-      marginBottom: 16,
+      marginBottom: 14,
+      shadowColor: colors.shadow,
+      shadowOpacity: 0.12,
+      shadowRadius: 12,
+      shadowOffset: { width: 0, height: 7 },
+      elevation: 2,
     },
     infoIcon: {
       width: 42,
@@ -677,7 +751,7 @@ function createStyles(colors: ThemeColors) {
     balanceCard: {
       backgroundColor: colors.surface,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       borderRadius: 24,
       padding: 14,
       gap: 5,
@@ -693,7 +767,7 @@ function createStyles(colors: ThemeColors) {
     previewCard: {
       backgroundColor: colors.surface,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       borderRadius: 24,
       padding: 14,
       gap: 10,
@@ -702,7 +776,7 @@ function createStyles(colors: ThemeColors) {
     previewMetric: {
       backgroundColor: colors.surfaceSoft,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       borderRadius: 17,
       padding: 11,
       gap: 4,
@@ -714,11 +788,26 @@ function createStyles(colors: ThemeColors) {
     formCard: {
       backgroundColor: colors.surface,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       borderRadius: 24,
       padding: 16,
       gap: 15,
       marginBottom: 16,
+    },
+    sectionMiniHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'flex-end',
+      gap: 12,
+      marginTop: 4,
+      marginBottom: -2,
+    },
+    sectionMiniTitle: {
+      marginTop: 3,
+      color: colors.text,
+    },
+    sectionMiniHint: {
+      fontWeight: '900',
     },
     field: {
       gap: 8,
@@ -731,7 +820,7 @@ function createStyles(colors: ThemeColors) {
       borderRadius: 18,
       backgroundColor: colors.surfaceSoft,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       paddingHorizontal: 13,
       flexDirection: 'row',
       alignItems: 'center',
@@ -769,7 +858,7 @@ function createStyles(colors: ThemeColors) {
       borderRadius: 18,
       backgroundColor: colors.surfaceSoft,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       paddingHorizontal: 13,
       flexDirection: 'row',
       alignItems: 'center',
@@ -784,7 +873,7 @@ function createStyles(colors: ThemeColors) {
       borderRadius: 20,
       backgroundColor: colors.surfaceSoft,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       padding: 10,
       flexDirection: 'row',
       alignItems: 'center',
@@ -796,7 +885,7 @@ function createStyles(colors: ThemeColors) {
       borderRadius: 15,
       backgroundColor: colors.surface,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       paddingHorizontal: 10,
       paddingVertical: 8,
       gap: 4,
@@ -823,8 +912,11 @@ function createStyles(colors: ThemeColors) {
       fontWeight: '900',
       fontSize: 18,
     },
+    fullWidthMotion: {
+      alignSelf: 'stretch',
+    },
     saveButton: {
-      minHeight: 56,
+      minHeight: 54,
       borderRadius: 20,
       backgroundColor: colors.primary,
       alignItems: 'center',
@@ -856,7 +948,7 @@ function createStyles(colors: ThemeColors) {
     emptyCard: {
       backgroundColor: colors.surface,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       borderRadius: 24,
       padding: 22,
       alignItems: 'center',

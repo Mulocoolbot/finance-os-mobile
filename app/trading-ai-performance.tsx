@@ -1,7 +1,8 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
+import { AnimatedPressable } from '../src/components/ui/AnimatedPressable';
 import { AppText } from '../src/components/ui/AppText';
 import { Screen } from '../src/components/ui/Screen';
 import { StatCard } from '../src/components/ui/StatCard';
@@ -452,17 +453,17 @@ export default function TradingAiPerformanceScreen() {
   return (
     <Screen>
       <View style={styles.header}>
-        <Pressable onPress={() => router.back()} style={styles.backButton}>
+        <AnimatedPressable onPress={() => router.back()} style={styles.backButton}>
           <Ionicons name="chevron-back-outline" size={22} color={colors.text} />
-        </Pressable>
+        </AnimatedPressable>
 
         <View style={styles.headerText}>
           <AppText variant="caption" muted>
-            Trading Journal
+            AI Coach
           </AppText>
 
           <AppText variant="title" style={styles.title}>
-            AI Performance
+            Performance
           </AppText>
         </View>
       </View>
@@ -471,7 +472,7 @@ export default function TradingAiPerformanceScreen() {
         <View style={styles.heroTop}>
           <View style={styles.heroTextBox}>
             <AppText variant="caption" muted>
-              AI Trading Coach
+              Trading Coach
             </AppText>
 
             <AppText
@@ -485,7 +486,7 @@ export default function TradingAiPerformanceScreen() {
             </AppText>
 
             <AppText variant="caption" muted style={styles.heroDescription}>
-              Local AI-style analysis from closed trades, plan rules, RR, risk, and mistakes.
+              Local analysis from closed trades and plan rules.
             </AppText>
           </View>
 
@@ -504,7 +505,7 @@ export default function TradingAiPerformanceScreen() {
               const active = periodFilter === filter.value;
 
               return (
-                <Pressable
+                <AnimatedPressable
                   key={filter.value}
                   onPress={() => setPeriodFilter(filter.value)}
                   style={[styles.filterChip, active ? styles.filterChipActive : null]}
@@ -521,7 +522,7 @@ export default function TradingAiPerformanceScreen() {
                   >
                     {filter.label}
                   </AppText>
-                </Pressable>
+                </AnimatedPressable>
               );
             })}
           </View>
@@ -529,11 +530,11 @@ export default function TradingAiPerformanceScreen() {
       </View>
 
       <View style={styles.filterSection}>
-        <AppText variant="subtitle">Trading Account</AppText>
+        <AppText variant="subtitle">Account</AppText>
 
         <ScrollView horizontal showsHorizontalScrollIndicator={false}>
           <View style={styles.chipRow}>
-            <Pressable
+            <AnimatedPressable
               onPress={() => setSelectedAccountId('all')}
               style={[styles.filterChip, selectedAccountId === 'all' ? styles.filterChipActive : null]}
             >
@@ -550,15 +551,15 @@ export default function TradingAiPerformanceScreen() {
                   selectedAccountId === 'all' ? styles.filterChipTextActive : null,
                 ]}
               >
-                All accounts
+                All
               </AppText>
-            </Pressable>
+            </AnimatedPressable>
 
             {tradingAccounts.map((account) => {
               const active = selectedAccountId === account.id;
 
               return (
-                <Pressable
+                <AnimatedPressable
                   key={account.id}
                   onPress={() => setSelectedAccountId(account.id)}
                   style={[styles.filterChip, active ? styles.filterChipActive : null]}
@@ -576,7 +577,7 @@ export default function TradingAiPerformanceScreen() {
                   >
                     {account.name}
                   </AppText>
-                </Pressable>
+                </AnimatedPressable>
               );
             })}
           </View>
@@ -588,14 +589,14 @@ export default function TradingAiPerformanceScreen() {
         <StatCard label="Win Rate" value={`${summary.winRate.toFixed(0)}%`} />
         <StatCard label="Avg RR" value={summary.averageRR.toFixed(2)} />
         <StatCard
-          label="Plan Issues"
+          label="Plan"
           value={`${summary.planViolationCount}`}
           tone={summary.planViolationCount > 0 ? 'expense' : 'income'}
         />
       </View>
 
       <View style={styles.sectionHeader}>
-        <AppText variant="subtitle">AI Insights</AppText>
+        <AppText variant="subtitle">Insights</AppText>
 
         <AppText variant="caption" muted>
           {insights.length} signal{insights.length === 1 ? '' : 's'}
@@ -627,7 +628,7 @@ export default function TradingAiPerformanceScreen() {
       </View>
 
       <View style={styles.sectionHeader}>
-        <AppText variant="subtitle">Next Action Plan</AppText>
+        <AppText variant="subtitle">Next Actions</AppText>
 
         <AppText variant="caption" muted>
           Coach
@@ -664,7 +665,7 @@ export default function TradingAiPerformanceScreen() {
         <Ionicons name="information-circle-outline" size={20} color={colors.textMuted} />
 
         <AppText variant="caption" muted style={styles.noteText}>
-          This phase uses local analysis, not external AI API yet. Real cloud AI can be added after database/auth so API keys and user data stay safer.
+          Local analysis only. Cloud AI can be added after database/auth.
         </AppText>
       </View>
     </Screen>
@@ -674,7 +675,7 @@ export default function TradingAiPerformanceScreen() {
 function createStyles(colors: ThemeColors) {
   return StyleSheet.create({
     header: {
-      marginBottom: 22,
+      marginBottom: 18,
       flexDirection: 'row',
       alignItems: 'center',
       gap: 14,
@@ -685,7 +686,7 @@ function createStyles(colors: ThemeColors) {
       borderRadius: 16,
       backgroundColor: colors.surface,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       alignItems: 'center',
       justifyContent: 'center',
     },
@@ -697,11 +698,16 @@ function createStyles(colors: ThemeColors) {
       marginTop: 4,
     },
     heroCard: {
-      backgroundColor: colors.surface,
+      backgroundColor: colors.surfaceRaised,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       borderRadius: 28,
-      padding: 18,
+      padding: 16,
+      shadowColor: colors.shadow,
+      shadowOpacity: 0.12,
+      shadowRadius: 12,
+      shadowOffset: { width: 0, height: 7 },
+      elevation: 2,
     },
     heroTop: {
       flexDirection: 'row',
@@ -719,8 +725,8 @@ function createStyles(colors: ThemeColors) {
       lineHeight: 35,
     },
     heroDescription: {
-      marginTop: 4,
-      lineHeight: 18,
+      marginTop: 3,
+      lineHeight: 16,
     },
     heroIcon: {
       width: 44,
@@ -728,13 +734,13 @@ function createStyles(colors: ThemeColors) {
       borderRadius: 17,
       backgroundColor: colors.surfaceSoft,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       alignItems: 'center',
       justifyContent: 'center',
     },
     filterSection: {
-      marginTop: 20,
-      gap: 10,
+      marginTop: 16,
+      gap: 9,
     },
     chipRow: {
       flexDirection: 'row',
@@ -747,7 +753,7 @@ function createStyles(colors: ThemeColors) {
       borderRadius: 999,
       backgroundColor: colors.surface,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       paddingHorizontal: 12,
       flexDirection: 'row',
       alignItems: 'center',
@@ -784,7 +790,7 @@ function createStyles(colors: ThemeColors) {
     insightCard: {
       backgroundColor: colors.surface,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       borderRadius: 22,
       padding: 14,
       flexDirection: 'row',
@@ -808,8 +814,8 @@ function createStyles(colors: ThemeColors) {
       fontWeight: '900',
     },
     insightMessage: {
-      marginTop: 5,
-      lineHeight: 19,
+      marginTop: 4,
+      lineHeight: 17,
     },
     actionList: {
       gap: 12,
@@ -817,7 +823,7 @@ function createStyles(colors: ThemeColors) {
     actionCard: {
       backgroundColor: colors.surface,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       borderRadius: 22,
       padding: 14,
       flexDirection: 'row',
@@ -850,15 +856,15 @@ function createStyles(colors: ThemeColors) {
       fontWeight: '900',
     },
     actionMessage: {
-      marginTop: 5,
-      lineHeight: 19,
+      marginTop: 4,
+      lineHeight: 17,
     },
     noteCard: {
       marginTop: 18,
       marginBottom: 8,
       backgroundColor: colors.surface,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.borderSoft,
       borderRadius: 18,
       padding: 13,
       flexDirection: 'row',

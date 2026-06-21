@@ -7,6 +7,7 @@ import { NumericAmountInput } from '../src/components/ui/NumericAmountInput';
 import { Screen } from '../src/components/ui/Screen';
 import { ThemeColors } from '../src/constants/colors';
 import { useThemeColors } from '../src/hooks/useThemeColors';
+import { useAppToast } from '../src/components/ui/AppToast';
 import { useFinanceStore } from '../src/stores/useFinanceStore';
 import { BudgetPeriod, Category } from '../src/types/finance';
 
@@ -41,6 +42,7 @@ function parseAmount(value: string) {
 export default function AddBudgetScreen() {
   const colors = useThemeColors();
   const styles = createStyles(colors);
+  const toast = useAppToast();
 
   const categories = useFinanceStore((state) => state.categories);
   const addBudget = useFinanceStore((state) => state.addBudget);
@@ -71,11 +73,11 @@ export default function AddBudgetScreen() {
     });
 
     if (!result.success) {
-      Alert.alert('Finance OS Mobile', result.message);
+      toast.showError('Could Not Save Budget', result.message);
       return;
     }
 
-    Alert.alert('Finance OS Mobile', result.message);
+    toast.showSuccess('Budget Saved', result.message);
     router.back();
   }
 

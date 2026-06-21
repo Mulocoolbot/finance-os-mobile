@@ -7,6 +7,7 @@ import { NumericAmountInput } from '../src/components/ui/NumericAmountInput';
 import { Screen } from '../src/components/ui/Screen';
 import { ThemeColors } from '../src/constants/colors';
 import { useThemeColors } from '../src/hooks/useThemeColors';
+import { useAppToast } from '../src/components/ui/AppToast';
 import { useFinanceStore } from '../src/stores/useFinanceStore';
 import { InvestmentHolding } from '../src/types/finance';
 import { formatCurrency } from '../src/utils/currency';
@@ -34,6 +35,7 @@ function getHoldingValue(holding: InvestmentHolding, currentPrice?: number) {
 export default function UpdateInvestmentHoldingPriceScreen() {
   const colors = useThemeColors();
   const styles = createStyles(colors);
+  const toast = useAppToast();
   const params = useLocalSearchParams<{ holdingId?: string }>();
 
   const accounts = useFinanceStore((state) => state.accounts);
@@ -83,7 +85,7 @@ export default function UpdateInvestmentHoldingPriceScreen() {
 
   function handleSave() {
     if (!holding) {
-      Alert.alert('Finance OS Mobile', 'Investment holding not found.');
+      toast.showWarning('Holding Missing', 'Investment holding not found.');
       return;
     }
 
@@ -92,11 +94,13 @@ export default function UpdateInvestmentHoldingPriceScreen() {
       currentPrice: parseNumber(currentPrice),
     });
 
-    Alert.alert('Finance OS Mobile', result.message);
-
-    if (result.success) {
-      router.back();
+    if (!result.success) {
+      toast.showError('Could Not Update Price', result.message);
+      return;
     }
+
+    toast.showSuccess('Price Updated', result.message);
+    router.back();
   }
 
   if (!holding) {

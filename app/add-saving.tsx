@@ -7,6 +7,7 @@ import { NumericAmountInput } from '../src/components/ui/NumericAmountInput';
 import { Screen } from '../src/components/ui/Screen';
 import { ThemeColors } from '../src/constants/colors';
 import { useThemeColors } from '../src/hooks/useThemeColors';
+import { useAppToast } from '../src/components/ui/AppToast';
 import { useFinanceStore } from '../src/stores/useFinanceStore';
 import { Account, SavingGoal } from '../src/types/finance';
 import { formatCurrency } from '../src/utils/currency';
@@ -25,6 +26,7 @@ const savingStatusOptions: { label: string; value: SavingGoal['status'] }[] = [
 export default function AddSavingScreen() {
   const colors = useThemeColors();
   const styles = createStyles(colors);
+  const toast = useAppToast();
   const params = useLocalSearchParams<{ savingGoalId?: string }>();
   const savingGoalId =
     typeof params.savingGoalId === 'string' ? params.savingGoalId : '';
@@ -95,11 +97,11 @@ export default function AddSavingScreen() {
           });
 
     if (!result.success) {
-      Alert.alert('Finance OS Mobile', result.message);
+      toast.showError('Could Not Save Saving', result.message);
       return;
     }
 
-    Alert.alert('Finance OS Mobile', result.message);
+    toast.showSuccess(isEditMode ? 'Saving Updated' : 'Saving Saved', result.message);
     router.back();
   }
 
@@ -157,6 +159,22 @@ export default function AddSavingScreen() {
       </View>
 
       <View style={styles.form}>
+        <View style={styles.sectionMiniHeader}>
+          <View>
+            <AppText variant="caption" muted>
+              Step 1
+            </AppText>
+
+            <AppText variant="subtitle" style={styles.sectionMiniTitle}>
+              Saving identity
+            </AppText>
+          </View>
+
+          <AppText variant="caption" muted style={styles.sectionMiniHint}>
+            Goal name
+          </AppText>
+        </View>
+
         <View style={styles.field}>
           <AppText variant="caption" muted style={styles.label}>
             Goal Name
@@ -169,6 +187,22 @@ export default function AddSavingScreen() {
             placeholderTextColor={colors.textMuted}
             style={styles.input}
           />
+        </View>
+
+        <View style={styles.sectionMiniHeader}>
+          <View>
+            <AppText variant="caption" muted>
+              Step 2
+            </AppText>
+
+            <AppText variant="subtitle" style={styles.sectionMiniTitle}>
+              Amount & source
+            </AppText>
+          </View>
+
+          <AppText variant="caption" muted style={styles.sectionMiniHint}>
+            Target
+          </AppText>
         </View>
 
         <NumericAmountInput
@@ -207,6 +241,22 @@ export default function AddSavingScreen() {
             colors={colors}
           />
         ) : null}
+
+        <View style={styles.sectionMiniHeader}>
+          <View>
+            <AppText variant="caption" muted>
+              Step 3
+            </AppText>
+
+            <AppText variant="subtitle" style={styles.sectionMiniTitle}>
+              Status, deadline & note
+            </AppText>
+          </View>
+
+          <AppText variant="caption" muted style={styles.sectionMiniHint}>
+            Final detail
+          </AppText>
+        </View>
 
         <View style={styles.field}>
           <AppText variant="caption" muted style={styles.label}>
@@ -248,6 +298,8 @@ export default function AddSavingScreen() {
         ) : null}
 
         <Pressable onPress={handleSubmit} style={styles.submitButton}>
+          <Ionicons name="checkmark-circle-outline" size={19} color={colors.black} />
+
           <AppText variant="body" style={styles.submitText}>
             {isEditMode ? 'Update Goal' : 'Save Goal'}
           </AppText>
@@ -402,6 +454,21 @@ function createStyles(colors: ThemeColors) {
     form: {
       gap: 18,
     },
+    sectionMiniHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'flex-end',
+      gap: 12,
+      marginTop: 4,
+      marginBottom: -4,
+    },
+    sectionMiniTitle: {
+      marginTop: 3,
+      color: colors.text,
+    },
+    sectionMiniHint: {
+      fontWeight: '900',
+    },
     field: {
       gap: 10,
     },
@@ -530,6 +597,8 @@ function createStyles(colors: ThemeColors) {
       backgroundColor: colors.primary,
       alignItems: 'center',
       justifyContent: 'center',
+      flexDirection: 'row',
+      gap: 8,
     },
     submitText: {
       color: colors.black,
