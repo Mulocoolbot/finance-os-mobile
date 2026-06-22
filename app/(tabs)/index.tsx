@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Animated, Easing, Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { AppText } from '../../src/components/ui/AppText';
 import { AnimatedPressable } from '../../src/components/ui/AnimatedPressable';
 import { Screen } from '../../src/components/ui/Screen';
@@ -340,6 +340,7 @@ export default function HomeScreen() {
   const { width } = useWindowDimensions();
   const netWorthChartWidth = Math.min(width - 64, 360);
   const netWorthChartHeight = 146;
+  const dashboardLineReveal = useRef(new Animated.Value(0)).current;
   const [selectedDashboardPointId, setSelectedDashboardPointId] = useState<string | null>(null);
 
   const accounts = useFinanceStore((state) => state.accounts);
@@ -504,6 +505,24 @@ export default function HomeScreen() {
   const netWorthChartMin = useMemo(() => {
     return getNetWorthChartMin(netWorthChartItems, dashboard.netWorth);
   }, [netWorthChartItems, dashboard.netWorth]);
+
+  const netWorthChartAnimationKey = useMemo(() => {
+    return netWorthChartItems
+      .map((item) => `${item.id}:${item.date}:${Math.round(item.netWorth * 100)}`)
+      .join('|');
+  }, [netWorthChartItems]);
+
+  useEffect(() => {
+    dashboardLineReveal.stopAnimation();
+    dashboardLineReveal.setValue(0);
+
+    Animated.timing(dashboardLineReveal, {
+      toValue: 1,
+      duration: Math.min(1600, 560 + netWorthChartItems.length * 90),
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: false,
+    }).start();
+  }, [dashboardLineReveal, netWorthChartAnimationKey, netWorthChartItems.length]);
 
   useEffect(() => {
     upsertTodayNetWorthSnapshot({
@@ -874,16 +893,37 @@ export default function HomeScreen() {
                   const deltaY = nextPoint.y - point.y;
                   const length = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
                   const angle = Math.atan2(deltaY, deltaX);
+                  const segmentCount = Math.max(points.length - 1, 1);
+                  const segmentStart = index / segmentCount;
+                  const segmentEnd = (index + 1) / segmentCount;
+                  const segmentProgress = dashboardLineReveal.interpolate({
+                    inputRange: [segmentStart, segmentEnd],
+                    outputRange: [0, 1],
+                    extrapolate: 'clamp',
+                  });
+                  const animatedWidth = segmentProgress.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [0, length],
+                  });
+                  const animatedLeft = segmentProgress.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [point.x, point.x + deltaX / 2 - length / 2],
+                  });
+                  const animatedTop = segmentProgress.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [point.y, point.y + deltaY / 2],
+                  });
 
                   return (
-                    <View
+                    <Animated.View
                       key={`${point.id}-${nextPoint.id}`}
                       style={[
                         styles.dashboardLineSegment,
                         {
-                          left: point.x + deltaX / 2 - length / 2,
-                          top: point.y + deltaY / 2,
-                          width: length,
+                          left: animatedLeft,
+                          top: animatedTop,
+                          width: animatedWidth,
+                          opacity: segmentProgress,
                           transform: [{ rotateZ: `${angle}rad` }],
                         },
                       ]}
@@ -891,11 +931,24 @@ export default function HomeScreen() {
                   );
                 })}
 
-                {points.map((point) => {
+                {points.map((point, index) => {
                   const active = point.id === selectedDashboardPointId;
+                  const pointCount = Math.max(points.length - 1, 1);
+                  const pointMoment = points.length === 1 ? 1 : index / pointCount;
+                  const pointStart = index === 0 ? 0 : Math.max(pointMoment - 0.08, 0);
+                  const pointEnd = index === 0 ? 0.08 : pointMoment;
+                  const pointProgress = dashboardLineReveal.interpolate({
+                    inputRange: [pointStart, pointEnd],
+                    outputRange: [0, 1],
+                    extrapolate: 'clamp',
+                  });
+                  const pointScale = pointProgress.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [0.65, 1],
+                  });
 
                   return (
-                    <View
+                    <Animated.View
                       key={point.id}
                       pointerEvents="none"
                       style={[
@@ -903,6 +956,8 @@ export default function HomeScreen() {
                         {
                           left: point.x - 17,
                           top: point.y - 17,
+                          opacity: pointProgress,
+                          transform: [{ scale: pointScale }],
                         },
                       ]}
                     >
@@ -912,7 +967,7 @@ export default function HomeScreen() {
                           active && styles.dashboardLinePointDotActive,
                         ]}
                       />
-                    </View>
+                    </Animated.View>
                   );
                 })}
 

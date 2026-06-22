@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { router } from 'expo-router';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Animated, Easing, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { AppText } from '../../src/components/ui/AppText';
 import { Screen } from '../../src/components/ui/Screen';
 import { StatCard } from '../../src/components/ui/StatCard';
@@ -2005,6 +2005,22 @@ function InvestmentPerformanceChart({
       item.realizedPnL !== 0 ? 8 : 0
     ),
   }));
+  const chartReveal = useRef(new Animated.Value(0)).current;
+  const animationKey = compactData
+    .map((item) => `${item.label}:${item.buyValue}:${item.sellValue}:${item.realizedPnL}`)
+    .join('|');
+
+  useEffect(() => {
+    chartReveal.stopAnimation();
+    chartReveal.setValue(0);
+
+    Animated.timing(chartReveal, {
+      toValue: 1,
+      duration: Math.min(1400, 460 + compactData.length * 70),
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: false,
+    }).start();
+  }, [animationKey, chartReveal, compactData.length]);
 
   return (
     <View>
@@ -2032,46 +2048,68 @@ function InvestmentPerformanceChart({
       </View>
 
       <View style={styles.investmentChartBody}>
-        {compactData.map((item) => (
-          <View key={item.label} style={styles.investmentChartItem}>
-            <View style={styles.investmentBarGroup}>
-              <View
-                style={[
-                  styles.investmentBar,
-                  {
-                    height: `${item.buyHeight}%`,
-                    backgroundColor: colors.income,
-                  },
-                ]}
-              />
+        {compactData.map((item, index) => {
+          const itemStart = compactData.length <= 1 ? 0 : index / compactData.length;
+          const itemEnd = compactData.length <= 1 ? 1 : (index + 1) / compactData.length;
+          const itemReveal = chartReveal.interpolate({
+            inputRange: [itemStart, itemEnd],
+            outputRange: [0, 1],
+            extrapolate: 'clamp',
+          });
+          const buyAnimatedHeight = itemReveal.interpolate({
+            inputRange: [0, 1],
+            outputRange: ['0%', `${item.buyHeight}%`],
+          });
+          const sellAnimatedHeight = itemReveal.interpolate({
+            inputRange: [0, 1],
+            outputRange: ['0%', `${item.sellHeight}%`],
+          });
+          const pnlAnimatedHeight = itemReveal.interpolate({
+            inputRange: [0, 1],
+            outputRange: ['0%', `${item.pnlHeight}%`],
+          });
 
-              <View
-                style={[
-                  styles.investmentBar,
-                  {
-                    height: `${item.sellHeight}%`,
-                    backgroundColor: colors.saving,
-                  },
-                ]}
-              />
+          return (
+            <View key={item.label} style={styles.investmentChartItem}>
+              <View style={styles.investmentBarGroup}>
+                <Animated.View
+                  style={[
+                    styles.investmentBar,
+                    {
+                      height: buyAnimatedHeight as any,
+                      backgroundColor: colors.income,
+                    },
+                  ]}
+                />
 
-              <View
-                style={[
-                  styles.investmentBar,
-                  {
-                    height: `${item.pnlHeight}%`,
-                    backgroundColor:
-                      item.realizedPnL >= 0 ? colors.investment : colors.expense,
-                  },
-                ]}
-              />
+                <Animated.View
+                  style={[
+                    styles.investmentBar,
+                    {
+                      height: sellAnimatedHeight as any,
+                      backgroundColor: colors.saving,
+                    },
+                  ]}
+                />
+
+                <Animated.View
+                  style={[
+                    styles.investmentBar,
+                    {
+                      height: pnlAnimatedHeight as any,
+                      backgroundColor:
+                        item.realizedPnL >= 0 ? colors.investment : colors.expense,
+                    },
+                  ]}
+                />
+              </View>
+
+              <AppText variant="caption" muted style={styles.chartLabel}>
+                {item.label}
+              </AppText>
             </View>
-
-            <AppText variant="caption" muted style={styles.chartLabel}>
-              {item.label}
-            </AppText>
-          </View>
-        ))}
+          );
+        })}
       </View>
 
       <View style={styles.investmentChartFooter}>
@@ -2173,36 +2211,72 @@ function DailyTrendChart({
   const compactData = data.filter((_, index) => {
     return index === 0 || index === data.length - 1 || (index + 1) % 5 === 0;
   });
+  const chartReveal = useRef(new Animated.Value(0)).current;
+  const animationKey = compactData
+    .map((item) => `${item.label}:${item.income}:${item.expense}`)
+    .join('|');
+
+  useEffect(() => {
+    chartReveal.stopAnimation();
+    chartReveal.setValue(0);
+
+    Animated.timing(chartReveal, {
+      toValue: 1,
+      duration: Math.min(1300, 440 + compactData.length * 70),
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: false,
+    }).start();
+  }, [animationKey, chartReveal, compactData.length]);
 
   return (
     <View style={styles.chart}>
-      {compactData.map((item) => (
-        <View key={item.label} style={styles.chartItem}>
-          <View style={styles.barColumn}>
-            <View
-              style={[
-                styles.incomeBar,
-                {
-                  height: `${Math.max((item.income / maxValue) * 100, item.income > 0 ? 8 : 0)}%`,
-                },
-              ]}
-            />
+      {compactData.map((item, index) => {
+        const itemStart = compactData.length <= 1 ? 0 : index / compactData.length;
+        const itemEnd = compactData.length <= 1 ? 1 : (index + 1) / compactData.length;
+        const itemReveal = chartReveal.interpolate({
+          inputRange: [itemStart, itemEnd],
+          outputRange: [0, 1],
+          extrapolate: 'clamp',
+        });
+        const incomeHeight = Math.max((item.income / maxValue) * 100, item.income > 0 ? 8 : 0);
+        const expenseHeight = Math.max((item.expense / maxValue) * 100, item.expense > 0 ? 8 : 0);
+        const incomeAnimatedHeight = itemReveal.interpolate({
+          inputRange: [0, 1],
+          outputRange: ['0%', `${incomeHeight}%`],
+        });
+        const expenseAnimatedHeight = itemReveal.interpolate({
+          inputRange: [0, 1],
+          outputRange: ['0%', `${expenseHeight}%`],
+        });
 
-            <View
-              style={[
-                styles.expenseBar,
-                {
-                  height: `${Math.max((item.expense / maxValue) * 100, item.expense > 0 ? 8 : 0)}%`,
-                },
-              ]}
-            />
+        return (
+          <View key={item.label} style={styles.chartItem}>
+            <View style={styles.barColumn}>
+              <Animated.View
+                style={[
+                  styles.incomeBar,
+                  {
+                    height: incomeAnimatedHeight as any,
+                  },
+                ]}
+              />
+
+              <Animated.View
+                style={[
+                  styles.expenseBar,
+                  {
+                    height: expenseAnimatedHeight as any,
+                  },
+                ]}
+              />
+            </View>
+
+            <AppText variant="caption" muted style={styles.chartLabel}>
+              {item.label}
+            </AppText>
           </View>
-
-          <AppText variant="caption" muted style={styles.chartLabel}>
-            {item.label}
-          </AppText>
-        </View>
-      ))}
+        );
+      })}
     </View>
   );
 }
@@ -2216,35 +2290,70 @@ function MonthlyTrendChart({
   maxValue: number;
   styles: ReturnType<typeof createStyles>;
 }) {
+  const chartReveal = useRef(new Animated.Value(0)).current;
+  const animationKey = data.map((item) => `${item.label}:${item.income}:${item.expense}`).join('|');
+
+  useEffect(() => {
+    chartReveal.stopAnimation();
+    chartReveal.setValue(0);
+
+    Animated.timing(chartReveal, {
+      toValue: 1,
+      duration: Math.min(1300, 440 + data.length * 70),
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: false,
+    }).start();
+  }, [animationKey, chartReveal, data.length]);
+
   return (
     <View style={styles.chart}>
-      {data.map((item) => (
-        <View key={item.label} style={styles.chartItem}>
-          <View style={styles.barColumn}>
-            <View
-              style={[
-                styles.incomeBar,
-                {
-                  height: `${Math.max((item.income / maxValue) * 100, item.income > 0 ? 8 : 0)}%`,
-                },
-              ]}
-            />
+      {data.map((item, index) => {
+        const itemStart = data.length <= 1 ? 0 : index / data.length;
+        const itemEnd = data.length <= 1 ? 1 : (index + 1) / data.length;
+        const itemReveal = chartReveal.interpolate({
+          inputRange: [itemStart, itemEnd],
+          outputRange: [0, 1],
+          extrapolate: 'clamp',
+        });
+        const incomeHeight = Math.max((item.income / maxValue) * 100, item.income > 0 ? 8 : 0);
+        const expenseHeight = Math.max((item.expense / maxValue) * 100, item.expense > 0 ? 8 : 0);
+        const incomeAnimatedHeight = itemReveal.interpolate({
+          inputRange: [0, 1],
+          outputRange: ['0%', `${incomeHeight}%`],
+        });
+        const expenseAnimatedHeight = itemReveal.interpolate({
+          inputRange: [0, 1],
+          outputRange: ['0%', `${expenseHeight}%`],
+        });
 
-            <View
-              style={[
-                styles.expenseBar,
-                {
-                  height: `${Math.max((item.expense / maxValue) * 100, item.expense > 0 ? 8 : 0)}%`,
-                },
-              ]}
-            />
+        return (
+          <View key={item.label} style={styles.chartItem}>
+            <View style={styles.barColumn}>
+              <Animated.View
+                style={[
+                  styles.incomeBar,
+                  {
+                    height: incomeAnimatedHeight as any,
+                  },
+                ]}
+              />
+
+              <Animated.View
+                style={[
+                  styles.expenseBar,
+                  {
+                    height: expenseAnimatedHeight as any,
+                  },
+                ]}
+              />
+            </View>
+
+            <AppText variant="caption" muted style={styles.chartLabel}>
+              {item.label}
+            </AppText>
           </View>
-
-          <AppText variant="caption" muted style={styles.chartLabel}>
-            {item.label}
-          </AppText>
-        </View>
-      ))}
+        );
+      })}
     </View>
   );
 }

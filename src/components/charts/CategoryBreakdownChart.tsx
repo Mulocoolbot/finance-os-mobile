@@ -1,4 +1,5 @@
-import { DimensionValue, StyleSheet, View } from 'react-native';
+import { useEffect, useMemo, useRef } from 'react';
+import { Animated, DimensionValue, Easing, StyleSheet, View } from 'react-native';
 import { colors } from '../../constants/colors';
 import { Currency } from '../../types/finance';
 import { formatCurrency } from '../../utils/currency';
@@ -26,6 +27,23 @@ export function CategoryBreakdownChart({
   data,
   currency,
 }: CategoryBreakdownChartProps) {
+  const barReveal = useRef(new Animated.Value(0)).current;
+  const animationKey = useMemo(() => {
+    return data.map((item) => `${item.categoryName}:${item.amount}`).join('|');
+  }, [data]);
+
+  useEffect(() => {
+    barReveal.stopAnimation();
+    barReveal.setValue(0);
+
+    Animated.timing(barReveal, {
+      toValue: 1,
+      duration: Math.min(1200, 420 + data.length * 80),
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: false,
+    }).start();
+  }, [animationKey, barReveal, data.length]);
+
   const total = data.reduce((sum, item) => sum + item.amount, 0);
   const maxValue = Math.max(1, ...data.map((item) => item.amount));
 
@@ -63,6 +81,18 @@ export function CategoryBreakdownChart({
         {data.map((item) => {
           const percentage = total > 0 ? (item.amount / total) * 100 : 0;
           const width = toPercentWidth((item.amount / maxValue) * 100);
+          const itemIndex = data.indexOf(item);
+          const rowStart = data.length <= 1 ? 0 : itemIndex / data.length;
+          const rowEnd = data.length <= 1 ? 1 : (itemIndex + 1) / data.length;
+          const rowReveal = barReveal.interpolate({
+            inputRange: [rowStart, rowEnd],
+            outputRange: [0, 1],
+            extrapolate: 'clamp',
+          });
+          const animatedWidth = rowReveal.interpolate({
+            inputRange: [0, 1],
+            outputRange: ['0%', width as string],
+          });
 
           return (
             <View key={item.categoryName} style={styles.row}>
@@ -78,7 +108,7 @@ export function CategoryBreakdownChart({
 
               <View style={styles.barLine}>
                 <View style={styles.track}>
-                  <View style={[styles.fill, { width }]} />
+                  <Animated.View style={[styles.fill, { width: animatedWidth as any }]} />
                 </View>
 
                 <AppText variant="caption" muted style={styles.amountLabel}>

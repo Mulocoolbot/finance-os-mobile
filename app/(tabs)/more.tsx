@@ -108,9 +108,10 @@ const systemMenus: MenuItem[] = [
 const upcomingMenus: MenuItem[] = [
   {
     title: 'Database + Auth',
-    description: 'Cloud sync.',
+    description: 'Auth foundation.',
     icon: 'cloud-outline',
-    badge: 'Planned',
+    route: '/auth-readiness',
+    badge: 'Next',
   },
   {
     title: 'Real AI API',
@@ -195,7 +196,7 @@ export default function MoreScreen() {
 
       <View style={styles.menuList}>
         {upcomingMenus.map((item) => (
-          <MenuCard key={item.title} item={item} disabled colors={colors} />
+          <MenuCard key={item.title} item={item} disabled={!item.route} colors={colors} />
         ))}
       </View>
     </Screen>

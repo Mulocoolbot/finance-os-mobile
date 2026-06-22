@@ -9,6 +9,13 @@ import { runInvestmentPriceSyncOnAppOpen } from '../src/services/investmentAppOp
 import { useFinanceStore } from '../src/stores/useFinanceStore';
 import { useThemeStore } from '../src/stores/useThemeStore';
 
+const screenTransitionOptions = {
+  animation: 'slide_from_right' as const,
+  animationDuration: 220,
+  gestureEnabled: true,
+  fullScreenGestureEnabled: true,
+};
+
 export default function RootLayout() {
   const colors = useThemeColors();
   const resolvedThemeMode = useResolvedThemeMode();
@@ -68,6 +75,7 @@ export default function RootLayout() {
       <Stack
         screenOptions={{
           headerShown: false,
+          ...screenTransitionOptions,
           contentStyle: {
             backgroundColor: colors.background,
           },

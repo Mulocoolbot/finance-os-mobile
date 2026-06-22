@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { useMemo, useState } from 'react';
-import { Alert, Pressable, StyleSheet, View } from 'react-native';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Alert, Animated, Easing, Pressable, StyleSheet, View } from 'react-native';
 import { AnimatedPressable } from '../src/components/ui/AnimatedPressable';
 import { AppText } from '../src/components/ui/AppText';
 import { Screen } from '../src/components/ui/Screen';
@@ -185,6 +185,7 @@ export default function InvestmentsScreen() {
   const [activeSort, setActiveSort] = useState<HoldingSort>('value');
   const [isSyncingPrices, setIsSyncingPrices] = useState(false);
   const [lastPriceSyncSummary, setLastPriceSyncSummary] = useState('Prices auto-update when app opens. Manual sync is still available.');
+  const performanceReveal = useRef(new Animated.Value(0)).current;
 
   const investmentAccounts = useMemo(() => {
     return accounts.filter((account) => account.isActive && isInvestmentAccount(account));
@@ -389,6 +390,23 @@ export default function InvestmentsScreen() {
   const maxPerformanceValue = useMemo(() => {
     return getMaxInvestmentPerformanceValue(performanceItems);
   }, [performanceItems]);
+  const performanceAnimationKey = useMemo(() => {
+    return performanceItems
+      .map((item) => `${item.label}:${item.buyValue}:${item.sellValue}:${item.realizedPnL}`)
+      .join('|');
+  }, [performanceItems]);
+
+  useEffect(() => {
+    performanceReveal.stopAnimation();
+    performanceReveal.setValue(0);
+
+    Animated.timing(performanceReveal, {
+      toValue: 1,
+      duration: Math.min(1400, 460 + performanceItems.length * 70),
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: false,
+    }).start();
+  }, [performanceAnimationKey, performanceItems.length, performanceReveal]);
 
   const pnlIsPositive = summary.unrealizedPnL >= 0;
   const realizedPnlIsPositive = summary.realizedPnL >= 0;
@@ -800,7 +818,7 @@ export default function InvestmentsScreen() {
         </View>
 
         <View style={styles.performanceChartBody}>
-          {performanceItems.map((item) => {
+          {performanceItems.map((item, index) => {
             const buyHeight = Math.max(
               (item.buyValue / maxPerformanceValue) * 100,
               item.buyValue > 0 ? 8 : 0
@@ -813,35 +831,54 @@ export default function InvestmentsScreen() {
               (Math.abs(item.realizedPnL) / maxPerformanceValue) * 100,
               item.realizedPnL !== 0 ? 8 : 0
             );
+            const itemStart = performanceItems.length <= 1 ? 0 : index / performanceItems.length;
+            const itemEnd = performanceItems.length <= 1 ? 1 : (index + 1) / performanceItems.length;
+            const itemReveal = performanceReveal.interpolate({
+              inputRange: [itemStart, itemEnd],
+              outputRange: [0, 1],
+              extrapolate: 'clamp',
+            });
+            const buyAnimatedHeight = itemReveal.interpolate({
+              inputRange: [0, 1],
+              outputRange: ['0%', `${buyHeight}%`],
+            });
+            const sellAnimatedHeight = itemReveal.interpolate({
+              inputRange: [0, 1],
+              outputRange: ['0%', `${sellHeight}%`],
+            });
+            const pnlAnimatedHeight = itemReveal.interpolate({
+              inputRange: [0, 1],
+              outputRange: ['0%', `${pnlHeight}%`],
+            });
 
             return (
               <View key={item.label} style={styles.performanceChartItem}>
                 <View style={styles.performanceBarGroup}>
-                  <View
+                  <Animated.View
                     style={[
                       styles.performanceBar,
                       {
-                        height: `${buyHeight}%`,
+                        height: buyAnimatedHeight as any,
                         backgroundColor: colors.income,
                       },
                     ]}
                   />
 
-                  <View
+                  <Animated.View
                     style={[
                       styles.performanceBar,
                       {
-                        height: `${sellHeight}%`,
+                        height: sellAnimatedHeight as any,
                         backgroundColor: colors.saving,
                       },
                     ]}
                   />
 
-                  <View
+                  <Animated.View
                     style={[
                       styles.performanceBar,
                       {
-                        height: `${pnlHeight}%`,
+                        height: pnlAnimatedHeight as any,
                         backgroundColor:
                           item.realizedPnL >= 0 ? colors.investment : colors.expense,
                       },

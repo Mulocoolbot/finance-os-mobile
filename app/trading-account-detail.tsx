@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useMemo, useState } from 'react';
-import { Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Animated, Easing, Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { AnimatedPressable } from '../src/components/ui/AnimatedPressable';
 import { AppText } from '../src/components/ui/AppText';
 import { Screen } from '../src/components/ui/Screen';
@@ -1718,6 +1718,23 @@ function GrowthLineChart({
   const { width } = useWindowDimensions();
   const chartWidth = Math.min(width - 84, 360);
   const chartHeight = 150;
+  const lineReveal = useRef(new Animated.Value(0)).current;
+  const animationKey = points
+    .map((point) => `${point.periodKey}:${point.label}:${Math.round(point.value * 100)}`)
+    .join('|');
+
+  useEffect(() => {
+    lineReveal.stopAnimation();
+    lineReveal.setValue(0);
+
+    Animated.timing(lineReveal, {
+      toValue: 1,
+      duration: Math.min(1500, 520 + points.length * 85),
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: false,
+    }).start();
+  }, [animationKey, lineReveal, points.length]);
+
   const chartPaddingX = 22;
   const chartPaddingY = 20;
   const plotWidth = Math.max(chartWidth - chartPaddingX * 2, 1);
@@ -1795,42 +1812,77 @@ function GrowthLineChart({
           />
         ))}
 
-        {segments.map((segment) => (
-          <View
-            key={segment.key}
-            style={[
-              styles.chartLineSegment,
-              {
-                width: segment.width,
-                left: segment.left,
-                top: segment.top,
-                transform: [{ rotateZ: `${segment.angle}deg` }],
-              },
-            ]}
-          />
-        ))}
-
-        {chartPoints.map((point) => {
-          const selected = point.id === selectedPoint?.id;
+        {segments.map((segment, index) => {
+          const segmentCount = Math.max(segments.length, 1);
+          const segmentStart = index / segmentCount;
+          const segmentEnd = (index + 1) / segmentCount;
+          const segmentProgress = lineReveal.interpolate({
+            inputRange: [segmentStart, segmentEnd],
+            outputRange: [0, 1],
+            extrapolate: 'clamp',
+          });
+          const animatedWidth = segmentProgress.interpolate({
+            inputRange: [0, 1],
+            outputRange: [0, segment.width],
+          });
 
           return (
-            <Pressable
+            <Animated.View
+              key={segment.key}
+              style={[
+                styles.chartLineSegment,
+                {
+                  width: animatedWidth,
+                  left: segment.left,
+                  top: segment.top,
+                  opacity: segmentProgress,
+                  transform: [{ rotateZ: `${segment.angle}deg` }],
+                },
+              ]}
+            />
+          );
+        })}
+
+        {chartPoints.map((point, index) => {
+          const selected = point.id === selectedPoint?.id;
+          const pointCount = Math.max(chartPoints.length - 1, 1);
+          const pointMoment = chartPoints.length === 1 ? 1 : index / pointCount;
+          const pointStart = index === 0 ? 0 : Math.max(pointMoment - 0.08, 0);
+          const pointEnd = index === 0 ? 0.08 : pointMoment;
+          const pointProgress = lineReveal.interpolate({
+            inputRange: [pointStart, pointEnd],
+            outputRange: [0, 1],
+            extrapolate: 'clamp',
+          });
+          const pointScale = pointProgress.interpolate({
+            inputRange: [0, 1],
+            outputRange: [0.65, 1],
+          });
+
+          return (
+            <Animated.View
               key={point.id}
-              onPress={() =>
-                setSelectedPointId((currentPointId) =>
-                  currentPointId === point.id ? null : point.id
-                )
-              }
               style={[
                 styles.chartDotTouch,
                 {
                   left: point.x - 16,
                   top: point.y - 16,
+                  opacity: pointProgress,
+                  transform: [{ scale: pointScale }],
                 },
               ]}
             >
-              <View style={[styles.chartDot, selected ? styles.chartDotSelected : null]} />
-            </Pressable>
+              <Pressable
+                onPress={() =>
+                  setSelectedPointId((currentPointId) =>
+                    currentPointId === point.id ? null : point.id
+                  )
+                }
+                style={styles.chartDotButton}
+              >
+                <View style={[styles.chartDot, selected ? styles.chartDotSelected : null]} />
+              </Pressable>
+            </Animated.View>
           );
         })}
 
@@ -2145,6 +2197,9 @@ function createStyles(colors: ThemeColors) {
       position: 'absolute',
       width: 28,
       height: 28,
+    },
+    chartDotButton: {
+      flex: 1,
       alignItems: 'center',
       justifyContent: 'center',
     },

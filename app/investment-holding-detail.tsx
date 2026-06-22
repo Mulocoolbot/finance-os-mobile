@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useMemo, useState } from 'react';
-import { Alert, Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Alert, Animated, Easing, Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { AppText } from '../src/components/ui/AppText';
 import { Screen } from '../src/components/ui/Screen';
 import { ThemeColors } from '../src/constants/colors';
@@ -179,6 +179,7 @@ export default function InvestmentHoldingDetailScreen() {
   const priceChartHeight = 132;
   const [priceChartPeriod, setPriceChartPeriod] = useState<PriceChartPeriod>('daily');
   const [selectedPriceChartPointId, setSelectedPriceChartPointId] = useState<string | null>(null);
+  const priceLineReveal = useRef(new Animated.Value(0)).current;
 
   const accounts = useFinanceStore((state) => state.accounts);
   const investmentHoldings = useFinanceStore((state) => state.investmentHoldings);
@@ -318,6 +319,21 @@ export default function InvestmentHoldingDetailScreen() {
       : priceChartPeriod === 'monthly'
         ? 'last 12 monthly points'
         : 'last 8 yearly points';
+  const priceChartAnimationKey = priceChartItems
+    .map((item) => `${item.id}:${item.recordedAt}:${Math.round(item.price * 100)}`)
+    .join('|');
+
+  useEffect(() => {
+    priceLineReveal.stopAnimation();
+    priceLineReveal.setValue(0);
+
+    Animated.timing(priceLineReveal, {
+      toValue: 1,
+      duration: Math.min(1500, 520 + priceChartItems.length * 85),
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: false,
+    }).start();
+  }, [priceChartAnimationKey, priceChartItems.length, priceLineReveal]);
 
   const holdingOrders = investmentOrders
     .filter((order) => order.holdingId === holding.id)
@@ -723,16 +739,37 @@ export default function InvestmentHoldingDetailScreen() {
                   const deltaY = nextPoint.y - point.y;
                   const length = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
                   const angle = Math.atan2(deltaY, deltaX);
+                  const segmentCount = Math.max(points.length - 1, 1);
+                  const segmentStart = index / segmentCount;
+                  const segmentEnd = (index + 1) / segmentCount;
+                  const segmentProgress = priceLineReveal.interpolate({
+                    inputRange: [segmentStart, segmentEnd],
+                    outputRange: [0, 1],
+                    extrapolate: 'clamp',
+                  });
+                  const animatedWidth = segmentProgress.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [0, length],
+                  });
+                  const animatedLeft = segmentProgress.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [point.x, point.x + deltaX / 2 - length / 2],
+                  });
+                  const animatedTop = segmentProgress.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [point.y, point.y + deltaY / 2],
+                  });
 
                   return (
-                    <View
+                    <Animated.View
                       key={`${point.id}-${nextPoint.id}`}
                       style={[
                         styles.priceLineSegment,
                         {
-                          left: point.x + deltaX / 2 - length / 2,
-                          top: point.y + deltaY / 2,
-                          width: length,
+                          left: animatedLeft,
+                          top: animatedTop,
+                          width: animatedWidth,
+                          opacity: segmentProgress,
                           transform: [{ rotateZ: `${angle}rad` }],
                         },
                       ]}
@@ -740,11 +777,24 @@ export default function InvestmentHoldingDetailScreen() {
                   );
                 })}
 
-                {points.map((point) => {
+                {points.map((point, index) => {
                   const active = point.id === selectedPriceChartPointId;
+                  const pointCount = Math.max(points.length - 1, 1);
+                  const pointMoment = points.length === 1 ? 1 : index / pointCount;
+                  const pointStart = index === 0 ? 0 : Math.max(pointMoment - 0.08, 0);
+                  const pointEnd = index === 0 ? 0.08 : pointMoment;
+                  const pointProgress = priceLineReveal.interpolate({
+                    inputRange: [pointStart, pointEnd],
+                    outputRange: [0, 1],
+                    extrapolate: 'clamp',
+                  });
+                  const pointScale = pointProgress.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [0.65, 1],
+                  });
 
                   return (
-                    <View
+                    <Animated.View
                       key={point.id}
                       pointerEvents="none"
                       style={[
@@ -752,6 +802,8 @@ export default function InvestmentHoldingDetailScreen() {
                         {
                           left: point.x - 17,
                           top: point.y - 17,
+                          opacity: pointProgress,
+                          transform: [{ scale: pointScale }],
                         },
                       ]}
                     >
@@ -761,7 +813,7 @@ export default function InvestmentHoldingDetailScreen() {
                           active && styles.priceLinePointDotActive,
                         ]}
                       />
-                    </View>
+                    </Animated.View>
                   );
                 })}
 

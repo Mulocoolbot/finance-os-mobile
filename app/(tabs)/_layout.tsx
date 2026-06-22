@@ -38,6 +38,10 @@ function getTabTitle(routeName: string) {
   }
 }
 
+const tabTransitionOptions = {
+  animation: 'fade' as const,
+};
+
 export default function TabsLayout() {
   const colors = useThemeColors();
 
@@ -45,6 +49,7 @@ export default function TabsLayout() {
     <Tabs
       screenOptions={({ route }) => ({
         headerShown: false,
+        ...tabTransitionOptions,
         tabBarActiveTintColor: colors.text,
         tabBarInactiveTintColor: colors.textMuted,
         tabBarStyle: {

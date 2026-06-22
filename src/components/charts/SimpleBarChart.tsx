@@ -1,4 +1,5 @@
-import { DimensionValue, StyleSheet, View } from 'react-native';
+import { useEffect, useMemo, useRef } from 'react';
+import { Animated, DimensionValue, Easing, StyleSheet, View } from 'react-native';
 import { colors } from '../../constants/colors';
 import { Currency } from '../../types/finance';
 import { formatCurrency } from '../../utils/currency';
@@ -32,6 +33,25 @@ export function SimpleBarChart({
   mode,
   singleLabel = 'Value',
 }: SimpleBarChartProps) {
+  const barReveal = useRef(new Animated.Value(0)).current;
+  const animationKey = useMemo(() => {
+    return data
+      .map((item) => `${item.label}:${item.income || 0}:${item.expense || 0}:${item.value || 0}`)
+      .join('|');
+  }, [data]);
+
+  useEffect(() => {
+    barReveal.stopAnimation();
+    barReveal.setValue(0);
+
+    Animated.timing(barReveal, {
+      toValue: 1,
+      duration: Math.min(1300, 420 + data.length * 80),
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: false,
+    }).start();
+  }, [animationKey, barReveal, data.length]);
+
   const maxValue = Math.max(
     1,
     ...data.map((item) => {
@@ -68,6 +88,25 @@ export function SimpleBarChart({
           const incomeWidth = toPercentWidth(((item.income || 0) / maxValue) * 100);
           const expenseWidth = toPercentWidth(((item.expense || 0) / maxValue) * 100);
           const valueWidth = toPercentWidth(((item.value || 0) / maxValue) * 100);
+          const rowStart = data.length <= 1 ? 0 : data.indexOf(item) / data.length;
+          const rowEnd = data.length <= 1 ? 1 : (data.indexOf(item) + 1) / data.length;
+          const rowReveal = barReveal.interpolate({
+            inputRange: [rowStart, rowEnd],
+            outputRange: [0, 1],
+            extrapolate: 'clamp',
+          });
+          const incomeAnimatedWidth = rowReveal.interpolate({
+            inputRange: [0, 1],
+            outputRange: ['0%', incomeWidth as string],
+          });
+          const expenseAnimatedWidth = rowReveal.interpolate({
+            inputRange: [0, 1],
+            outputRange: ['0%', expenseWidth as string],
+          });
+          const valueAnimatedWidth = rowReveal.interpolate({
+            inputRange: [0, 1],
+            outputRange: ['0%', valueWidth as string],
+          });
 
           return (
             <View key={item.label} style={styles.row}>
@@ -93,11 +132,11 @@ export function SimpleBarChart({
                     </View>
 
                     <View style={styles.track}>
-                      <View
+                      <Animated.View
                         style={[
                           styles.barFill,
                           styles.incomeFill,
-                          { width: incomeWidth },
+                          { width: incomeAnimatedWidth as any },
                         ]}
                       />
                     </View>
@@ -115,11 +154,11 @@ export function SimpleBarChart({
                     </View>
 
                     <View style={styles.track}>
-                      <View
+                      <Animated.View
                         style={[
                           styles.barFill,
                           styles.expenseFill,
-                          { width: expenseWidth },
+                          { width: expenseAnimatedWidth as any },
                         ]}
                       />
                     </View>
@@ -138,11 +177,11 @@ export function SimpleBarChart({
                   </View>
 
                   <View style={styles.track}>
-                    <View
+                    <Animated.View
                       style={[
                         styles.barFill,
                         styles.singleFill,
-                        { width: valueWidth },
+                        { width: valueAnimatedWidth as any },
                       ]}
                     />
                   </View>

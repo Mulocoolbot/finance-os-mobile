@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { useState } from 'react';
-import { Alert, Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { Alert, Animated, Easing, Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { AppText } from '../src/components/ui/AppText';
 import { Screen } from '../src/components/ui/Screen';
 import { ThemeColors } from '../src/constants/colors';
@@ -114,6 +114,7 @@ export default function NetWorthHistoryScreen() {
   const lineChartWidth = Math.min(width - 64, 360);
   const lineChartHeight = 170;
   const [selectedNetWorthPointId, setSelectedNetWorthPointId] = useState<string | null>(null);
+  const lineChartReveal = useRef(new Animated.Value(0)).current;
 
   const netWorthSnapshots = useFinanceStore((state) => state.netWorthSnapshots);
   const deleteNetWorthSnapshot = useFinanceStore((state) => state.deleteNetWorthSnapshot);
@@ -127,6 +128,22 @@ export default function NetWorthHistoryScreen() {
   const changeValue = getChangeValue(sortedSnapshots);
   const changePositive = changeValue >= 0;
   const maxValue = getMaxSnapshotValue(sortedSnapshots);
+  const lineChartAnimationKey = sortedSnapshots
+    .slice(-12)
+    .map((item) => `${item.id}:${item.date}:${Math.round(item.netWorth * 100)}`)
+    .join('|');
+
+  useEffect(() => {
+    lineChartReveal.stopAnimation();
+    lineChartReveal.setValue(0);
+
+    Animated.timing(lineChartReveal, {
+      toValue: 1,
+      duration: Math.min(1600, 560 + sortedSnapshots.slice(-12).length * 90),
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: false,
+    }).start();
+  }, [lineChartAnimationKey, lineChartReveal, sortedSnapshots.length]);
 
   function handleDelete(snapshot: NetWorthSnapshot) {
     Alert.alert(
@@ -358,16 +375,37 @@ export default function NetWorthHistoryScreen() {
                     const deltaY = nextPoint.y - point.y;
                     const length = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
                     const angle = Math.atan2(deltaY, deltaX);
+                    const segmentCount = Math.max(points.length - 1, 1);
+                    const segmentStart = index / segmentCount;
+                    const segmentEnd = (index + 1) / segmentCount;
+                    const segmentProgress = lineChartReveal.interpolate({
+                      inputRange: [segmentStart, segmentEnd],
+                      outputRange: [0, 1],
+                      extrapolate: 'clamp',
+                    });
+                    const animatedWidth = segmentProgress.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0, length],
+                    });
+                    const animatedLeft = segmentProgress.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [point.x, point.x + deltaX / 2 - length / 2],
+                    });
+                    const animatedTop = segmentProgress.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [point.y, point.y + deltaY / 2],
+                    });
 
                     return (
-                      <View
+                      <Animated.View
                         key={`${point.id}-${nextPoint.id}`}
                         style={[
                           styles.lineSegment,
                           {
-                            left: point.x + deltaX / 2 - length / 2,
-                            top: point.y + deltaY / 2,
-                            width: length,
+                            left: animatedLeft,
+                            top: animatedTop,
+                            width: animatedWidth,
+                            opacity: segmentProgress,
                             transform: [{ rotateZ: `${angle}rad` }],
                           },
                         ]}
@@ -375,11 +413,24 @@ export default function NetWorthHistoryScreen() {
                     );
                   })}
 
-                  {points.map((point) => {
+                  {points.map((point, index) => {
                     const active = point.id === selectedNetWorthPointId;
+                    const pointCount = Math.max(points.length - 1, 1);
+                    const pointMoment = points.length === 1 ? 1 : index / pointCount;
+                    const pointStart = index === 0 ? 0 : Math.max(pointMoment - 0.08, 0);
+                    const pointEnd = index === 0 ? 0.08 : pointMoment;
+                    const pointProgress = lineChartReveal.interpolate({
+                      inputRange: [pointStart, pointEnd],
+                      outputRange: [0, 1],
+                      extrapolate: 'clamp',
+                    });
+                    const pointScale = pointProgress.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0.65, 1],
+                    });
 
                     return (
-                      <View
+                      <Animated.View
                         key={point.id}
                         pointerEvents="none"
                         style={[
@@ -387,6 +438,8 @@ export default function NetWorthHistoryScreen() {
                           {
                             left: point.x - 17,
                             top: point.y - 17,
+                            opacity: pointProgress,
+                            transform: [{ scale: pointScale }],
                           },
                         ]}
                       >
@@ -396,7 +449,7 @@ export default function NetWorthHistoryScreen() {
                             active && styles.linePointDotActive,
                           ]}
                         />
-                      </View>
+                      </Animated.View>
                     );
                   })}
 
